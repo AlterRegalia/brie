@@ -1,0 +1,20 @@
+# Ignore everything, then allow what belongs in the repo.
+*
+!.gitignore
+!Cargo.toml
+!Cargo.lock
+!README.md
+!AGENTS.md
+!LICENSE
+!CLAUDE.md
+!src/
+!src/**
+!assets/
+!assets/**
+!.github/
+!.github/**
+
+# The GitHub Pages site
+!docs/
+!docs/**
+!design.md

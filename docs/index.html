@@ -1,0 +1,376 @@
+<!doctype html>
+<!--
+  Hallmark · genre: modern-minimal · macrostructure: Narrative Workflow · theme: custom
+  See tokens.css for the full stamp. The two screenshots are real renders of brie's own TUI (demo data).
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>brie — task briefs for your coding agents</title>
+  <meta name="description" content="brie keeps one markdown file per task outside your repo. An orchestrator writes a brief, a worker agent does it, and Status tells you where it stands. CLI, terminal UI and MCP server.">
+  <meta name="theme-color" content="#07080c">
+  <meta name="color-scheme" content="dark">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="brie — your agents’ task board, outside the repo">
+  <meta property="og:description" content="One markdown file per task, kept beside your repos. A CLI, a terminal UI and an MCP server share the same plain files.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&amp;family=Geist:wght@300..700&amp;family=JetBrains+Mono:wght@400..700&amp;display=swap">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="nav">
+    <div class="nav__inner">
+      <a class="nav__brand" href="#top" aria-label="brie, back to the top">brie</a>
+      <nav class="nav__center" aria-label="Sections">
+        <a class="nav__link" href="#workflow">Workflow</a>
+        <a class="nav__link" href="#terminal">Terminal</a>
+        <a class="nav__link" href="#agents">Agents</a>
+        <a class="nav__link" href="#memory">Memory</a>
+      </nav>
+      <div class="nav__right">
+        <a class="nav__link nav__link--github" href="https://github.com/AlterRegalia/brie">GitHub</a>
+        <a class="btn" href="#install">Install</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="wrap" id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div>
+          <h1 id="hero-title" class="reveal" style="--i: 0">Your agents’ task board, <span class="mark">outside the repo</span>.</h1>
+          <p class="hero__lede reveal" style="--i: 1">brie keeps <strong>one markdown file per task</strong> in a folder beside your repos. Your orchestrator writes a brief, a worker agent does it and reports back, and <code>Status</code> tells you where it stands.</p>
+          <div class="hero__cta reveal" style="--i: 2">
+            <a class="btn btn--accent" href="#install">Install brie</a>
+            <a class="link-arrow" href="https://github.com/AlterRegalia/brie">View on GitHub</a>
+          </div>
+          <p class="hero__note reveal" style="--i: 3">A CLI, a terminal UI and an MCP server over the same plain files. Written in Rust, nothing to keep running.</p>
+        </div>
+
+        <figure class="frame hero__proof reveal" style="--i: 2">
+          <div class="frame__label"><span>orchestrator</span><span>harbor</span></div>
+<pre tabindex="0" aria-label="Terminal transcript: brie new creates a brief, brie wait prints todo, working, done as the status changes, and brie status lists the open briefs."><span class="t-prompt">$ </span><span class="t-cmd">brie new "retry flaky payment test"</span>
+<span class="t-out">…/harbor/briefs/08_10_2026_16:04_retry-flaky-payment-test.md</span>
+
+<span class="t-prompt">$ </span><span class="t-cmd">brie wait retry-flaky-payment-test -t 1800</span>
+<span class="t-out">todo</span>
+<span class="t-work">working</span>
+<span class="t-done">done</span>
+
+<span class="t-prompt">$ </span><span class="t-cmd">brie status</span>
+<span class="t-out">harbor: 2 todo · 1 done (3 briefs)
+todo     08_10_2026_16:05_document-the-webhook-retries.md
+todo     08_10_2026_16:05_upgrade-tokio-to-1-40.md
+(1 done not shown: --all, or --status done)</span></pre>
+          <figcaption class="cap">Real output from a demo project. Paths shortened, one hash line trimmed.</figcaption>
+        </figure>
+      </section>
+    </div>
+
+    <section class="section" id="workflow" aria-labelledby="workflow-title">
+      <div class="wrap">
+        <div class="section__head">
+          <h2 id="workflow-title">How a task moves</h2>
+          <p class="section__lede">A brief is the whole task for one worker. It has a contract: four statuses, one order, and nothing edited except the status line and the bottom of the file.</p>
+        </div>
+
+        <ol class="stages">
+          <li class="stage">
+            <div>
+              <div class="stage__n" aria-hidden="true">1.0</div>
+              <h3>Onboard a repo</h3>
+              <p>Run <code>brie add</code> once. Your <code>.briefs/</code> and <code>.prototype/</code> folders move into <code>~/.alter-store</code> and come back as symlinks, so the briefs stay out of your commits and diffs. <code>brie link</code> points another worktree at the same store. brie also writes a short block into <code>AGENTS.md</code> or <code>CLAUDE.md</code> that tells agents how to use it, and lets Claude Code write to the store without a permission prompt.</p>
+            </div>
+            <div class="stage__code">
+              <figure class="frame">
+<pre tabindex="0" aria-label="Terminal transcript of brie add."><span class="t-prompt">$ </span><span class="t-cmd">brie add</span>
+<span class="t-out">harbor -&gt; ~/.alter-store/harbor
+instructions written to ~/code/harbor/AGENTS.md
+store allowed in ~/code/harbor/.claude/settings.local.json</span></pre>
+              </figure>
+            </div>
+          </li>
+
+          <li class="stage">
+            <div>
+              <div class="stage__n" aria-hidden="true">2.0</div>
+              <h3>Write a brief</h3>
+              <p>The orchestrator runs <code>brie new</code> and fills in what to read, what to do and what not to do. Keep it under one screen. Temporary files go in a Scratch folder under <code>.prototype/</code>, so nothing lands in your tree.</p>
+            </div>
+            <div class="stage__code">
+              <figure class="frame">
+<pre tabindex="0" aria-label="Terminal transcript of brie new, then the start of the brief it creates."><span class="t-prompt">$ </span><span class="t-cmd">brie new "retry flaky payment test"</span>
+<span class="t-out">…/harbor/briefs/08_10_2026_16:04_retry-flaky-payment-test.md</span></pre>
+              </figure>
+              <figure class="frame">
+                <div class="frame__label"><span>the brief it creates</span><span>markdown</span></div>
+<pre tabindex="0" aria-label="The brief template: title, Status todo, Repo, Scratch, and nothing else: no sections."><span class="t-cmd"># Brief — retry flaky payment test</span>
+
+<span class="t-work">Status: todo</span>
+<span class="t-out">Repo: ~/code/harbor. Never read a path outside it.
+Scratch: .prototype/08_10_2026_16:04_retry-flaky-payment-test/</span></pre>
+              </figure>
+            </div>
+          </li>
+
+          <li class="stage">
+            <div>
+              <div class="stage__n" aria-hidden="true">3.0</div>
+              <h3>A worker does it</h3>
+              <p>The worker is any agent you start. It sets <strong>Status to working before it reads anything</strong>, does the job, appends a Report, and sets Status to done last. Status is the only signal the orchestrator trusts.</p>
+              <ul class="status-key" aria-label="The four statuses">
+                <li><span class="t-out">○</span> todo</li>
+                <li><span class="t-work">◐</span> working</li>
+                <li><span class="t-done">●</span> done</li>
+                <li><span class="t-bad">✕</span> blocked</li>
+              </ul>
+            </div>
+            <div class="stage__code">
+              <figure class="frame">
+<pre tabindex="0" aria-label="Terminal transcript of brie read showing the Report section a worker appended."><span class="t-prompt">$ </span><span class="t-cmd">brie read retry-flaky-payment-test --section Report</span>
+<span class="t-cmd">## Report</span>
+
+
+Files: tests/payments/charge_test.rs
+Commands run: cargo test payments (20 runs, 20 passed)
+Decisions: the retry raced the webhook; it now waits on the ledger row.
+Open: none</pre>
+              </figure>
+            </div>
+          </li>
+
+          <li class="stage">
+            <div>
+              <div class="stage__n" aria-hidden="true">4.0</div>
+              <h3>Wait, check, accept</h3>
+              <p><code>brie wait</code> blocks until a brief is done or blocked and exits 0, 2 or 1 on timeout, so a script can branch on it. <code>brie status</code> is the short call: counts, then only the briefs that aren’t done, however many exist. Check the report against the real diff, then accept.</p>
+            </div>
+            <div class="stage__code">
+              <figure class="frame">
+<pre tabindex="0" aria-label="Terminal transcript of brie wait printing todo, working, done, then the exit code 0."><span class="t-prompt">$ </span><span class="t-cmd">brie wait retry-flaky-payment-test -t 1800</span>
+<span class="t-out">todo</span>
+<span class="t-work">working</span>
+<span class="t-done">done</span>
+<span class="t-prompt">$ </span><span class="t-cmd">echo $?</span>
+<span class="t-out">0</span></pre>
+              </figure>
+            </div>
+          </li>
+        </ol>
+
+        <p class="stages__end"><a class="link-arrow" href="#install">Start at stage 1</a></p>
+      </div>
+    </section>
+
+    <section class="terminal" id="terminal" aria-labelledby="terminal-title">
+      <div class="wrap">
+        <div class="section__head">
+          <h2 id="terminal-title">A cockpit for you</h2>
+          <p class="section__lede">Run <code>brie</code> with no arguments for a full-screen view of every project, brief and prototype. It watches the files, so it is always current.</p>
+        </div>
+
+        <div class="terminal__grid">
+          <figure class="shot">
+<pre role="img" tabindex="0" aria-label="The brie terminal UI for the harbor project. A list of six briefs with status marks: one blocked, two working, two todo and one done. Below it a preview of the selected brief, and a status panel with counts for each status. A header above shows the version and the project, brief and prototype counts."> <span class="g">⣤</span><span class="g">⠤</span><span class="g">⠤</span><span class="g">⠯</span><span class="g">⠽</span><span class="g">⠤</span><span class="g">⠤</span><span class="g">⣤</span>  <span class="f-accent bold">brie</span><span class="f-muted">  v0.1.0</span>                                                                                 
+ <span class="g">⣿</span><span class="f-accent"><span class="g">⣠</span><span class="g">⣄</span><span class="g">⣶</span><span class="g">⣼</span><span class="g">⣯</span><span class="g">⣇</span></span><span class="g">⣿</span>  <span class="f-accent">1</span><span class="f-muted"> projects  </span><span class="f-accent">6</span><span class="f-muted"> briefs  </span><span class="f-accent">8</span><span class="f-muted"> prototypes</span>                                                           
+<span class="f-accent b-surface">┌ 1 </span><span class="f-muted b-surface bold">PROJECTS </span><span class="f-accent b-surface">────────┐</span><span class="f-line b-surface">┌</span><span class="f-ink b-accent bold"> 2 BRIEFS </span><span class="f-line b-surface"> </span><span class="f-muted b-surface"> 3 PROTOTYPES </span><span class="f-line b-surface"> ──────────────────────────────────────────────────────┐</span>
+<span class="f-accent b-surface">│</span><span class="f-ink b-accent bold">harbor              </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="b-line"><span class="g">○</span> 08_10_2026_16:03_upgrade-tokio-to-1-40.md                                     </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="b-surface">                    </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="f-accent b-surface"><span class="g">◐</span> </span><span class="b-surface">08_10_2026_16:03_retry-flaky-payment-test.md                                  </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="b-surface">                    </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="f-bad b-surface"><span class="g">✕</span> </span><span class="b-surface">08_10_2026_16:03_migrate-sessions-table.md                                    </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="b-surface">                    </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="b-surface"><span class="g">●</span> 08_10_2026_16:03_fix-login-redirect.md                                        </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="b-surface">                    </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="f-muted b-surface"><span class="g">○</span> </span><span class="b-surface">08_10_2026_16:03_document-the-webhook-retries.md                              </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="b-surface">                    </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="f-accent b-surface"><span class="g">◐</span> </span><span class="b-surface">08_10_2026_16:03_add-csv-export.md                                            </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="b-surface">                    </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="b-surface">                                                                                </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="b-surface">                    </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">└</span><span class="f-muted b-surface"> 6/6 · newest </span><span class="f-line b-surface">──────────────────────────────────────────────────────────────────┘</span>
+<span class="f-accent b-surface">│</span><span class="b-surface">                    </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">┌</span><span class="f-accent b-surface"> 4 </span><span class="f-muted b-surface bold">PREVIEW </span><span class="f-muted b-surface">08_10_2026_16:03_upgrade-tokio-to-1-40.md </span><span class="f-line b-surface">───────────────────────────┐</span>
+<span class="f-accent b-surface">│</span><span class="b-surface">                    </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="b-surface"> </span><span class="f-accent b-surface">█ </span><span class="f-accent b-surface bold">BRIEF — UPGRADE TOKIO TO 1 40</span><span class="b-surface">                                                </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="b-surface">                    </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="b-surface">                                                                                </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="b-surface">                    </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="b-surface"> Status: todo                                                                   </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="b-surface">                    </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="b-surface"> Repo: /home/dev/harbor. Never read a path outside it.                          </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="b-surface">                    </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="b-surface"> Scratch: </span><span class="f-info b-line">.prototype/08_10_2026_16:03_upgrade-tokio-to-1-40/</span><span class="b-surface">. Every temporary   </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="b-surface">                    </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="b-surface"> file goes there.                                                               </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">└────────────────────┘</span><span class="f-line b-surface">│</span><span class="b-surface">                                                                                </span><span class="f-line b-surface">│</span>
+<span class="f-line b-surface">┌</span><span class="f-accent b-surface"> 5 </span><span class="f-muted b-surface bold">STATUS </span><span class="f-line b-surface">──────────┐│</span><span class="b-surface"> </span><span class="f-accent b-surface">▌ </span><span class="b-surface bold">Read</span><span class="b-surface">                                                                         </span><span class="f-line b-surface">│</span>
+<span class="f-line b-surface">│</span><span class="f-muted b-surface"><span class="g">○</span> todo    ████</span><span class="b-surface"> 2    </span><span class="f-line b-surface">││</span><span class="b-surface">                                                                                </span><span class="f-line b-surface">│</span>
+<span class="f-line b-surface">│</span><span class="f-accent b-surface"><span class="g">◐</span> </span><span class="f-muted b-surface">working </span><span class="f-accent b-surface">████</span><span class="b-surface"> 2    </span><span class="f-line b-surface">││</span><span class="b-surface"> </span><span class="f-accent b-surface">• </span><span class="b-surface">Cargo.toml and Cargo.lock                                                    </span><span class="f-line b-surface">│</span>
+<span class="f-line b-surface">│</span><span class="b-surface"><span class="g">●</span> </span><span class="f-muted b-surface">done    </span><span class="b-surface">██</span><span class="f-line b-surface">░░</span><span class="b-surface"> 1    </span><span class="f-line b-surface">││</span><span class="b-surface">                                                                                </span><span class="f-line b-surface">│</span>
+<span class="f-line b-surface">│</span><span class="f-bad b-surface"><span class="g">✕</span> </span><span class="f-muted b-surface">blocked </span><span class="f-bad b-surface">██</span><span class="f-line b-surface">░░</span><span class="b-surface"> 1    </span><span class="f-line b-surface">││</span><span class="b-surface">                                                                                </span><span class="f-line b-surface">│</span>
+<span class="f-line b-surface">└────────────────────┘└────────────────────────────────────────────────────────────────────────────────┘</span>
+ <span class="f-accent">?</span><span class="f-muted"> shortcuts  </span><span class="f-accent">o</span><span class="f-muted"> order  </span><span class="f-accent">d</span><span class="f-muted"> date  </span><span class="f-accent">enter</span><span class="f-muted"> open  </span><span class="f-accent">/</span><span class="f-muted"> find  </span><span class="f-accent">q</span><span class="f-muted"> quit</span>                                               </pre>
+            <figcaption>The real interface, rendered from demo data. The theme colors are the ones on this page.</figcaption>
+          </figure>
+
+          <dl class="notes">
+            <div>
+              <dt>Live</dt>
+              <dd>The list refreshes every second. A worker’s Status change shows as it happens, and a brief that turns done or blocked rings the bell.</dd>
+            </div>
+            <div>
+              <dt>Find</dt>
+              <dd><kbd>/</kbd> searches names and contents. <code>status:working</code> filters by status.</dd>
+            </div>
+            <div>
+              <dt>Edit</dt>
+              <dd>Briefs open in a built-in markdown editor that renders as you type, while they are still drafts (todo).</dd>
+            </div>
+            <div>
+              <dt>Serve</dt>
+              <dd><kbd>s</kbd> serves a prototype from a brief’s Scratch folder. <kbd>v</kbd> lists what is running.</dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <section class="agents" id="agents" aria-labelledby="agents-title">
+      <div class="wrap">
+        <div class="section__head">
+          <h2 id="agents-title">Agents get tools, not a shell</h2>
+          <p class="section__lede"><code>brie mcp</code> speaks MCP over stdio. It is opt-in: nothing starts it unless you add it to your agent’s config.</p>
+        </div>
+
+        <div class="agents__grid">
+          <div>
+            <figure class="frame">
+              <div class="frame__label"><span>mcp config</span><span>json</span></div>
+<pre tabindex="0" aria-label="MCP configuration for brie."><span class="t-cmd">{
+  "mcpServers": {
+    "brie": { "command": "brie", "args": ["mcp"] }
+  }
+}</span></pre>
+            </figure>
+            <p class="fineprint">Use <code>"args": ["mcp", "--worker"]</code> for a worker. It gets <code>brief_status</code>, <code>brief_read</code>, <code>brief_set_status</code>, <code>brief_report</code>, <code>scratch_path</code>, <code>contract</code> and the read-only memory tools. The tools enforce the contract: <code>brief_set_status</code> sets only the Status line and <code>brief_report</code> appends at the bottom, and every tool refuses a file outside the project’s briefs folder.</p>
+          </div>
+
+          <dl class="spec">
+            <div class="spec__row"><dt>brief_new</dt><dd>Create a brief and its Scratch directory; returns both paths.</dd></div>
+            <div class="spec__row"><dt>brief_status</dt><dd>One brief’s status, or counts and the briefs not done. Short.</dd></div>
+            <div class="spec__row"><dt>brief_read</dt><dd>Read a brief, or part of it by heading.</dd></div>
+            <div class="spec__row"><dt>brief_set_status</dt><dd>Set the Status line. The only line of a brief that changes in place.</dd></div>
+            <div class="spec__row"><dt>brief_report</dt><dd>Append to the bottom, under one Report heading.</dd></div>
+            <div class="spec__row"><dt>brief_wait</dt><dd>Wait for briefs to be done or blocked. Returns after a timeout; call again.</dd></div>
+            <div class="spec__row"><dt>scratch_path</dt><dd>The Scratch directory of a brief; every temporary file goes there.</dd></div>
+            <div class="spec__row"><dt>contract</dt><dd>The brief rules, whole or for one role.</dd></div>
+            <div class="spec__row"><dt>servers, server_stop</dt><dd>Running prototype servers, and a way to stop them.</dd></div>
+            <div class="spec__row"><dt>memory_*</dt><dd>View, zoom, date, since, status, add and sub for the project’s memory.</dd></div>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <section class="memory" id="memory" aria-labelledby="memory-title">
+      <div class="wrap">
+        <div class="section__head">
+          <h2 id="memory-title">A log that never ends</h2>
+          <p class="section__lede">Long projects outgrow any context window. <code>brie memory</code> keeps the whole history and hands an agent a view that stays the same size. It is opt-in: off until you run <code>brie add --memory</code>.</p>
+        </div>
+
+        <div class="memory__grid">
+          <figure class="shot">
+<pre role="img" tabindex="0" aria-label="The brie memory window for the harbor project. A list of eleven messages, each a one-line summary with its kind: user, agent, tool, echo, work and note. A preview pane shows the selected message whole.">
+<span class="f-line b-surface">┌</span><span class="f-accent b-surface bold"> MEMORY </span><span class="f-muted b-surface">harbor </span><span class="f-line b-surface">───────────────────────────────────────────────────────────────────────────────────────────────┐</span>
+<span class="f-line b-surface">│</span><span class="f-text b-surface"> 11 messages, 19 nodes, view 11 lines 670 bytes (compactions 670 bytes), 0 lines not summarized yet, 0 waiting</span><span class="f-line b-surface">│</span>
+<span class="f-line b-surface">│</span><span class="f-muted b-surface"> summarizer: </span><span class="f-accent b-surface">model</span><span class="f-muted b-surface">  agent: </span><span class="f-accent b-surface">set</span><span class="f-text b-surface">   </span><span class="f-accent b-surface"><span class="g">▌</span>user</span><span class="f-text b-surface"> <span class="g">◆</span>agent</span><span class="f-violet b-surface"> <span class="g">⚙</span>tool</span><span class="f-muted b-surface"> <span class="g">⎘</span>echo</span><span class="f-info b-surface"> <span class="g">◐</span>work</span><span class="f-ok b-surface"> <span class="g">✎</span>note</span><span class="f-text b-surface">                                         </span><span class="f-line b-surface">│</span>
+<span class="f-line b-surface">└──────────────────────────────────────────────────────────────────────────────────────────────────────────────┘</span>
+<span class="f-muted"> view</span><span class="f-line">  the whole chat</span><span class="f-text">                                                                                           </span>
+<span class="f-accent b-surface">┌</span><span class="f-ink b-accent bold"> 1 VIEW </span><span class="f-accent b-surface"> </span><span class="f-muted b-surface"> 2 AGENTS </span><span class="f-accent b-surface"> ─────────────────────────┐</span><span class="f-line b-surface">┌</span><span class="f-muted b-surface bold"> PREVIEW </span><span class="f-line b-surface">──────────────────────────────────────────────────────┐</span>
+<span class="f-accent b-surface">│<span class="g">▌</span> 0+1       </span><span class="f-line b-surface">█████ </span><span class="f-text b-surface">user: the login bounce is l</span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="f-text b-surface"> </span><span class="f-muted b-surface">7+1  messages 7..7</span><span class="f-text b-surface">                                            </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="f-text b-surface"><span class="g">◆</span> </span><span class="f-accent b-surface">1+1       </span><span class="f-line b-surface">█████ </span><span class="f-text b-surface">agent: Confirmed on main: l</span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="f-text b-surface">                                                               </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="f-violet b-surface"><span class="g">⚙</span> </span><span class="f-accent b-surface">2+1       </span><span class="f-line b-surface">█████ </span><span class="f-text b-surface">tool: Bash {"command":"carg</span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="f-text b-surface"> </span><span class="f-accent b-surface bold"><span class="g">▌</span> user</span><span class="f-muted b-surface">  2026-10-09 16:40</span><span class="f-text b-surface">                                      </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="f-muted b-surface"><span class="g">⎘</span> </span><span class="f-accent b-surface">3+1       </span><span class="f-line b-surface">█████ </span><span class="f-text b-surface">echo: running 12 tests ... </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="f-text b-surface">   next: csv export for /reports. stream it, the big accounts  </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="f-info b-surface"><span class="g">◐</span> </span><span class="f-accent b-surface">4+1       </span><span class="f-line b-surface">█████ </span><span class="f-text b-surface">work: [Scout] report: the o</span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="f-text b-surface"> have 2M rows                                                  </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│<span class="g">▌</span> 5+1       </span><span class="f-line b-surface">█████ </span><span class="f-text b-surface">user: good catch. validate </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="f-text b-surface">                                                               </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="f-text b-surface"><span class="g">◆</span> </span><span class="f-accent b-surface">6+1       </span><span class="f-line b-surface">█████ </span><span class="f-text b-surface">agent: Done in brief fix-lo</span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="f-text b-surface"> </span><span class="f-muted b-surface">parent  </span><span class="f-accent b-surface">6+2  </span><span class="f-text b-surface">agent: Done in brief fix-login-redirect, ready   </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="f-ink b-accent bold"><span class="g">▌</span> 7+1       █████ user: next: csv export for </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="f-text b-surface"> for review user: next: csv export for /repo                   </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="f-text b-surface"><span class="g">◆</span> </span><span class="f-accent b-surface">8+1       </span><span class="f-line b-surface">█████ </span><span class="f-text b-surface">agent: Wrote add-csv-export</span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="f-text b-surface"> </span><span class="f-muted b-surface">sibling </span><span class="f-accent b-surface">6+1  </span><span class="f-text b-surface">agent: Done in brief fix-login-redirect, ready   </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│<span class="g">▌</span> 9+1       </span><span class="f-line b-surface">█████ </span><span class="f-text b-surface">user: the sessions migratio</span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="f-text b-surface"> for review                                                    </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="f-ok b-surface"><span class="g">✎</span> </span><span class="f-accent b-surface">10+1      </span><span class="f-line b-surface">█████ </span><span class="f-text b-surface">note: Maintenance window de</span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="f-text b-surface">                                                               </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="f-text b-surface">                                             </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="f-text b-surface">                                                               </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="f-text b-surface">                                             </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="f-text b-surface">                                                               </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="f-text b-surface">                                             </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="f-text b-surface">                                                               </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="f-text b-surface">                                             </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="f-text b-surface">                                                               </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">│</span><span class="f-text b-surface">                                             </span><span class="f-accent b-surface">│</span><span class="f-line b-surface">│</span><span class="f-text b-surface">                                                               </span><span class="f-line b-surface">│</span>
+<span class="f-accent b-surface">└</span><span class="f-muted b-surface"> 11 lines </span><span class="f-accent b-surface">───────────────────────────────────┘</span><span class="f-line b-surface">└───────────────────────────────────────────────────────────────┘</span>
+<span class="f-text"> </span><span class="f-accent">enter</span><span class="f-muted"> zoom in  </span><span class="f-accent"><span class="g">⌫</span></span><span class="f-muted"> out  </span><span class="f-accent">1 2 tab</span><span class="f-muted"> view/agents  </span><span class="f-accent">a</span><span class="f-muted"> add  </span><span class="f-accent">t</span><span class="f-muted"> turn  </span><span class="f-accent">u</span><span class="f-muted"> subagent  </span><span class="f-accent">s</span><span class="f-muted"> sync  </span><span class="f-accent">b</span><span class="f-muted"> build  </span><span class="f-accent">r</span><span class="f-muted"> reload  </span><span class="f-accent">esc</span><span class="f-muted"> close  </span><span class="f-text">   </span>
+</pre>
+            <figcaption>The memory window (<kbd>m</kbd>), rendered from demo data. Zoom into any line, add a message, run a turn.</figcaption>
+          </figure>
+
+          <div class="memory__how">
+            <div class="memory__how-main">
+              <p><strong>Every message is logged word for word</strong>, append only. A cheap model compresses the log into a tree of one-line summaries: each message becomes a line, two neighbours merge into one, and so on.</p>
+              <p><strong>An agent sees a view of 64 to 128 KB</strong> that covers the whole history, fine near the end and coarse far back. When a line is too vague, it zooms into the two lines it was made from, down to the original message.</p>
+            </div>
+            <p class="memory__how-side">It is experimental: you bring the summarizer and the agent as shell commands, <code>BRIE_SUMMARIZER</code> and <code>BRIE_AGENT</code>. <code>brie memory turn</code> runs one turn, and <code>brie memory sub</code> starts a subagent in the background.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="install" id="install" aria-labelledby="install-title">
+      <div class="wrap">
+        <div class="section__head">
+          <h2 id="install-title">Add brie to your workflow</h2>
+          <p class="section__lede">One binary, no service to run. Then tell your orchestrator to use <code class="nw">brie new</code>.</p>
+        </div>
+
+        <div class="install__grid">
+          <div class="install__steps">
+            <div>
+              <h3>Get the binary</h3>
+              <p>Download <code class="nw">brie-macos-arm64.tar.gz</code> (Apple silicon) or <code class="nw">brie-linux-x86_64.tar.gz</code> (Linux) from <a href="https://github.com/AlterRegalia/brie/releases">Releases</a>, then put <code>brie</code> on your <code>PATH</code>.</p>
+              <div class="cmd frame">
+<pre id="cmd-install" tabindex="0"><span class="t-cmd">tar -xzf brie-macos-arm64.tar.gz
+mkdir -p ~/.local/bin &amp;&amp; mv brie ~/.local/bin/</span></pre>
+                <button class="copy" type="button" data-copy="cmd-install">Copy</button>
+              </div>
+              <p class="fineprint">Prefer source? <code>cargo build --release</code> after <code>brew install rustup &amp;&amp; rustup default stable</code>.</p>
+            </div>
+
+            <div>
+              <h3>Onboard your repo</h3>
+              <p>From the repo root. Run it again any time; it changes nothing when the links are right.</p>
+              <div class="cmd frame">
+<pre id="cmd-add" tabindex="0"><span class="t-cmd">brie add</span></pre>
+                <button class="copy" type="button" data-copy="cmd-add">Copy</button>
+              </div>
+            </div>
+          </div>
+
+          <aside class="limits" aria-labelledby="limits-title">
+            <h3 id="limits-title">Good to know</h3>
+            <ul>
+              <li><strong>Early days.</strong> This is version 0.1, for macOS and Linux.</li>
+              <li><strong>One machine at a time.</strong> <code>brie sync</code> backs the store up to a git remote. It is not a team tool.</li>
+              <li><strong>brie doesn’t start agents.</strong> It is the protocol and the viewer, so it works with whatever runs your agents.</li>
+              <li><strong>Status is a convention.</strong> The MCP tools enforce the contract; a worker that edits the file by hand can still break it.</li>
+            </ul>
+          </aside>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap">
+      <p class="foot__line">Go brief an agent.</p>
+      <div class="foot__meta">
+        <span class="foot__brand">brie</span>
+        <nav class="foot__links" aria-label="Footer">
+          <a href="https://github.com/AlterRegalia/brie">GitHub</a>
+          <a href="https://github.com/AlterRegalia/brie/releases">Releases</a>
+        </nav>
+        <span>© 2026</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="site.js" defer></script>
+</body>
+</html>

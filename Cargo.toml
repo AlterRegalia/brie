@@ -1,0 +1,22 @@
+[package]
+name = "brie"
+version = "0.1.0"
+edition = "2024"
+description = "Keep project briefs and prototypes outside the repo, browse them in a TUI"
+license = "MIT"
+
+[dependencies]
+ratatui = { version = "0.30.2", default-features = false, features = ["crossterm", "unstable-rendered-line-info"] }
+unicode-width = "0.2.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+tao = "0.37.1"
+tray-icon = "0.26.1"
+wry = "0.57.0"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

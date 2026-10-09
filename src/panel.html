@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --paper: #0e1016;
+    --paper-2: #151821;
+    --rule: #2a2c34;
+    --ink: #f4f5f8;
+    --muted: #a9b0be;
+    --accent: #ffc400;
+    --bad: #ff3b3b;
+    --badge: #232631;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; background: transparent; overflow: hidden; }
+  body {
+    font: 12.5px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    -webkit-user-select: none;
+    user-select: none;
+    cursor: default;
+  }
+  .panel {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: rgba(14, 16, 22, 0.97);
+    border: 1px solid var(--rule);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  .top { display: flex; align-items: center; gap: 10px; padding: 11px 13px; border-bottom: 1px solid var(--rule); }
+  .top .logo { color: var(--muted); }
+  .search { flex: 1; display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; background: var(--paper-2); border-radius: 8px; color: var(--muted); }
+  .search svg { width: 14px; height: 14px; }
+  .search input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--ink); font: inherit; font-size: 13px; -webkit-user-select: text; user-select: text; }
+  .search input::placeholder { color: var(--muted); }
+  .badge { min-width: 22px; height: 20px; padding: 0 7px; display: inline-flex; align-items: center; justify-content: center; background: var(--badge); border-radius: 10px; font-size: 11px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .section { display: flex; align-items: center; gap: 8px; padding: 8px 15px; background: var(--paper-2); border-bottom: 1px solid var(--rule); color: var(--muted); font-weight: 600; font-size: 12px; }
+  .section svg { width: 14px; height: 14px; color: var(--accent); }
+
+  .list { flex: 1; overflow-y: auto; padding: 6px 8px; }
+  .list::-webkit-scrollbar { width: 0; }
+  .row { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 8px; border-radius: 8px; }
+  .row:hover { background: rgba(255, 255, 255, 0.05); }
+  .row .chev { color: var(--muted); width: 14px; height: 14px; transition: transform 120ms ease-out; }
+  .row.open .chev { transform: rotate(90deg); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--muted); }
+  .dot.working { background: var(--accent); }
+  .dot.blocked { background: var(--bad); }
+  .dot.done { background: var(--ink); }
+  .name { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta { color: var(--muted); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+  .group > .row { cursor: pointer; }
+
+  .brief { display: flex; align-items: center; gap: 8px; height: 30px; margin-left: 32px; padding: 0 8px; border-radius: 7px; cursor: pointer; }
+  .brief:hover { background: rgba(255, 255, 255, 0.05); }
+  .brief .dot { width: 6px; height: 6px; }
+  .brief .name { font-size: 12.5px; font-weight: 500; }
+  .brief .meta { font-weight: 500; }
+  .brief .btn { display: none; background: none; border: 0; color: var(--muted); cursor: pointer; padding: 2px; border-radius: 6px; }
+  .brief:hover .btn { display: inline-flex; }
+  .brief .btn:hover { color: var(--ink); background: var(--badge); }
+  .brief .btn svg { width: 13px; height: 13px; }
+  .empty { padding: 30px 14px; text-align: center; color: var(--muted); font-size: 12.5px; }
+
+  .actions { border-top: 1px solid var(--rule); padding: 6px 8px; }
+  .actions + .actions { padding-top: 6px; }
+  .act { display: flex; align-items: center; gap: 11px; height: 33px; padding: 0 8px; border-radius: 8px; font-size: 13px; cursor: pointer; }
+  .act:hover { background: rgba(255, 255, 255, 0.07); }
+  .act .label { flex: 1; }
+  .act kbd { font: inherit; font-size: 11.5px; color: var(--muted); font-weight: 600; letter-spacing: 0.04em; }
+  .act .switch { width: 26px; height: 15px; border-radius: 8px; background: var(--badge); position: relative; transition: background 120ms; }
+  .act .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%; background: var(--muted); transition: transform 120ms, background 120ms; }
+  .act .switch.on { background: var(--accent); }
+  .act .switch.on::after { transform: translateX(11px); background: #140e00; }
+  .act.quit { color: var(--ink); }
+  .act[hidden] { display: none; }
+</style>
+</head>
+<body>
+<div class="panel">
+  <div class="top">
+    <svg class="logo" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M9 8V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V8"/><path d="M6.5 17l3-4 2.5 2.5 2-3 3.5 4.5z"/></svg>
+    <label class="search">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="q" type="text" placeholder="Search…" autocomplete="off" spellcheck="false">
+    </label>
+    <span class="badge" id="total">0</span>
+  </div>
+  <div class="section">
+    <svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M9 8V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V8"/></svg>
+    <span id="title">brie</span>
+  </div>
+  <div class="list" id="list"></div>
+  <div class="actions">
+    <div class="act" data-do="refresh"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg><span class="label">Refresh</span><kbd>⌘R</kbd></div>
+    <div class="act" data-do="store"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="label">Open store</span><kbd>⌘O</kbd></div>
+    <div class="act" data-do="push" id="push" hidden><svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0c0 6 2 7 2 7H4s2-1 2-7"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="label" id="pushlabel">Send test push</span><kbd>⌘T</kbd></div>
+  </div>
+  <div class="actions">
+    <div class="act" data-do="style"><svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="8" rx="4"/></svg><span class="label">Pills in menu bar</span><span class="switch" id="pills"></span></div>
+    <div class="act" data-do="auto"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg><span class="label">Start at login</span><span class="switch" id="auto"></span></div>
+    <div class="act quit" data-do="quit"><svg viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg><span class="label" id="quitlabel">Quit brie</span><kbd>⌘Q</kbd></div>
+  </div>
+</div>
+<script>
+  const post = (msg) => window.ipc.postMessage(msg);
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const copyIcon = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg>';
+  const folderIcon = '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+  const chev = '<svg class="chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>';
+  let data = { groups: [], total: 0, push: null, auto: false, pills: true, version: "" };
+  const open = new Set();
+
+  function render(next) {
+    if (next) data = next;
+    const q = $("q").value.trim().toLowerCase();
+    $("total").textContent = data.total;
+    $("title").textContent = "brie " + data.version;
+    $("quitlabel").textContent = "Quit brie";
+    $("auto").classList.toggle("on", data.auto);
+    $("pills").classList.toggle("on", data.pills);
+    $("push").hidden = !data.push;
+    if (data.push) $("pushlabel").textContent = "Send test push (" + data.push + ")";
+    let html = "";
+    for (const g of data.groups) {
+      const briefs = q ? g.briefs.filter((b) => (b.name + " " + g.name).toLowerCase().includes(q)) : g.briefs;
+      if (q && !briefs.length) continue;
+      const isOpen = q ? true : open.has(g.name);
+      html += '<div class="group"><div class="row' + (isOpen ? " open" : "") + '" data-group="' + esc(g.name) + '">' + chev +
+        '<span class="dot ' + g.dot + '"></span><span class="name">' + esc(g.name) + '</span>' +
+        '<span class="meta">' + esc(g.meta) + '</span><span class="badge">' + briefs.length + '</span></div>';
+      if (isOpen) {
+        for (const b of briefs) {
+          html += '<div class="brief" data-path="' + esc(b.path) + '"><span class="dot ' + b.status + '"></span>' +
+            '<span class="name">' + esc(b.name) + '</span><span class="meta">' + esc(b.status) + '</span>' +
+            '<button class="btn" title="Reveal in Finder" data-reveal="' + esc(b.path) + '">' + folderIcon + '</button>' +
+            '<button class="btn" title="Copy path" data-copy="' + esc(b.path) + '">' + copyIcon + '</button></div>';
+        }
+      }
+      html += "</div>";
+    }
+    $("list").innerHTML = html || '<div class="empty">' + (q ? "No match" : "No open briefs") + "</div>";
+  }
+
+  $("list").addEventListener("click", (e) => {
+    const copy = e.target.closest("[data-copy]");
+    if (copy) { post("copy\t" + copy.dataset.copy); return; }
+    const reveal = e.target.closest("[data-reveal]");
+    if (reveal) { post("reveal\t" + reveal.dataset.reveal); return; }
+    const brief = e.target.closest(".brief");
+    if (brief) { post("open\t" + brief.dataset.path); return; }
+    const row = e.target.closest("[data-group]");
+    if (row) {
+      const name = row.dataset.group;
+      open.has(name) ? open.delete(name) : open.add(name);
+      render();
+    }
+  });
+  document.querySelectorAll("[data-do]").forEach((el) => el.addEventListener("click", () => post(el.dataset.do)));
+  $("q").addEventListener("input", () => render());
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { if ($("q").value) { $("q").value = ""; render(); } else post("hide"); return; }
+    if (!e.metaKey) return;
+    const map = { r: "refresh", o: "store", t: "push", q: "quit" };
+    const act = map[e.key.toLowerCase()];
+    if (act) { e.preventDefault(); post(act); }
+  });
+  window.shown = () => { $("q").value = ""; render(); $("q").focus(); };
+  render();
+</script>
+</body>
+</html>
