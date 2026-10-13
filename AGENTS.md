@@ -18,3 +18,4 @@ Managed by `brie add`. Edits inside this block are replaced.
   Check: `brie --version`.
 - Every commit bumps the minor version in `Cargo.toml` (for example 0.1.0 to 0.2.0). `Cargo.lock` follows. Commit them with the change.
 - CI runs `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo build` and `cargo test` on **Linux only**. A macOS-only clippy never sees the code behind `#[cfg(target_os = "macos")]`, so it reports clean while CI fails. Check the Linux target before every push: `rustup target add x86_64-unknown-linux-gnu && cargo clippy --target x86_64-unknown-linux-gnu --all-targets -- -D warnings`.
+- CI has no terminal, so `COLORTERM` is unset there and `theme::get()` picks the 256-color palette. Run the suite that way too: `env -u COLORTERM cargo test`. A truecolor terminal hides every test that reads a color.

@@ -16,11 +16,15 @@ use ratatui::style::{Color, Modifier, Style};
 use crate::md;
 use crate::theme;
 
+/// A theme color as CSS. A web view has no 256-color palette, so an indexed color becomes its RGB
+/// twin: without this the window loses every color when no terminal says `COLORTERM`.
 fn hex(c: Option<Color>) -> Option<String> {
-    match c? {
-        Color::Rgb(r, g, b) => Some(format!("#{r:02x}{g:02x}{b:02x}")),
-        _ => None,
-    }
+    let (r, g, b) = match c? {
+        Color::Rgb(r, g, b) => (r, g, b),
+        Color::Indexed(i) => theme::rgb_of_index(i)?,
+        _ => return None,
+    };
+    Some(format!("#{r:02x}{g:02x}{b:02x}"))
 }
 
 /// The CSS for one cell style: a color, and the modifiers the renderer can set.

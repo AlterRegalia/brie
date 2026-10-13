@@ -32,6 +32,15 @@ const PALETTE: [((u8, u8, u8), u8); 11] = [
     ((0xb9, 0x9c, 0xff), 141),
 ];
 
+/// The RGB form of a color from the 256-color palette. Both palettes come from the table above, so
+/// every index in it has an RGB twin.
+pub fn rgb_of_index(index: u8) -> Option<(u8, u8, u8)> {
+    PALETTE
+        .iter()
+        .find(|(_, i)| *i == index)
+        .map(|(rgb, _)| *rgb)
+}
+
 fn build(truecolor: bool) -> Theme {
     let pick = |k: usize| {
         let (rgb, indexed) = PALETTE[k];
