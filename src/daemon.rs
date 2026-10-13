@@ -13,6 +13,7 @@ use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
+#[cfg(target_os = "macos")]
 use crate::html;
 use crate::maint;
 use crate::store::{self, Kind, Res};

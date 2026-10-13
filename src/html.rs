@@ -5,6 +5,9 @@
 //! rules — the window shows exactly the cells the terminal shows, which is the point: one renderer,
 //! so the TUI and the window cannot drift.
 
+// Off macOS the brief window does not exist, so only the tests call into this module.
+#![cfg_attr(not(target_os = "macos"), allow(dead_code))]
+
 use std::collections::HashMap;
 use std::fmt::Write as _;
 

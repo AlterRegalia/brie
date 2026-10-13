@@ -68,7 +68,9 @@ pub fn get() -> &'static Theme {
 }
 
 /// The same palette in RGB, whatever the terminal can do: HTML has no 256-color fallback, and a
-/// window keeps its own colors, whatever terminal started the daemon.
+/// window keeps its own colors, whatever terminal started the daemon. Only the daemon's brief
+/// window calls this, and that window is macOS only.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn rgb() -> &'static Theme {
     static RGB: OnceLock<Theme> = OnceLock::new();
     RGB.get_or_init(|| build(true))
