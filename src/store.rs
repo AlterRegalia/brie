@@ -21,7 +21,7 @@ pub struct Item {
     pub path: PathBuf,
     pub is_dir: bool,
     pub modified: SystemTime,
-    /// The `Status:` of a brief (todo, working, done, blocked); `None` for anything else.
+    /// The `Status:` of a brief (todo, working, done, blocked). `None` for anything else.
     pub status: Option<String>,
 }
 
@@ -105,7 +105,7 @@ pub fn find(name: &str) -> Option<Project> {
     projects().into_iter().find(|p| p.name == name)
 }
 
-/// Project whose repo contains the current directory; the deepest repo wins.
+/// Project whose repo contains the current directory. The deepest repo wins.
 pub fn from_cwd() -> Option<Project> {
     let cwd = fs::canonicalize(std::env::current_dir().ok()?).ok()?;
     projects()
@@ -405,7 +405,7 @@ pub fn set_memory(project: &str, on: bool) -> Res<()> {
     Ok(())
 }
 
-/// Whether a brief may be edited in place: only a draft (`todo`), or a file with no Status line.
+/// Whether a brief can be edited in place: only a draft (`todo`), or a file with no Status line.
 /// After hand-off a brief only grows at the bottom, through `brie report`.
 pub fn is_draft(path: &Path) -> bool {
     matches!(status_of(path).as_str(), "todo" | "unknown")
@@ -445,7 +445,7 @@ fn seal_path(brief: &Path) -> Option<PathBuf> {
 }
 
 /// Record how long the brief is, and a hash of it, apart from its `Status:` line. From then on the
-/// text up to that length must stay as it is; only the end may grow.
+/// text up to that length must stay as it is. Only the end can grow.
 fn seal(brief: &Path) {
     let (Some(at), Ok(text)) = (seal_path(brief), fs::read_to_string(brief)) else {
         return;
@@ -480,7 +480,7 @@ pub fn drift(brief: &Path) -> Option<String> {
     })
 }
 
-/// Called after every write by brie. A brief with no seal is sealed when it leaves `todo`; a sealed one
+/// Called after every write by brie. A brief with no seal is sealed when it leaves `todo`. A sealed one
 /// is sealed again only if it had not drifted, so a hand edit is never blessed.
 fn after_write(brief: &Path, drifted: bool, still_draft: bool) {
     if drifted {
@@ -520,7 +520,7 @@ pub fn set_status(path: &Path, status: &str) -> Res<Option<String>> {
     Ok(warning)
 }
 
-/// Append to the bottom of a brief. The `## Report` heading is added once; later calls add under it.
+/// Append to the bottom of a brief. The `## Report` heading is added once. Later calls add under it.
 /// Returns a warning when the brief changed in place earlier.
 pub fn append_report(path: &Path, text: &str) -> Res<Option<String>> {
     let text = text.trim();
@@ -816,7 +816,7 @@ mod tests {
     #[test]
     fn drift_is_flagged_after_hand_off_only() {
         let path = brief("drift", "# Brief\n\nStatus: todo\n\n## Do\n\n1. x\n");
-        // A draft may change freely.
+        // A draft can change freely.
         fs::write(&path, "# Brief v2\n\nStatus: todo\n\n## Do\n\n1. y\n").unwrap();
         assert_eq!(set_status(&path, "todo").unwrap(), None);
         assert!(drift(&path).is_none());

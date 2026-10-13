@@ -44,8 +44,8 @@ pub fn live(lines: &[String], raw: std::ops::RangeInclusive<usize>) -> Vec<Line<
 }
 
 /// The rendered form of one source line. `in_code` carries the fence state from line to line.
-/// With `keep`, fence lines and table separators stay as thin rules, so each source line gives one line;
-/// without it they give `None`.
+/// With `keep`, fence lines and table separators stay as thin rules, so each source line gives one line.
+/// Without it they give `None`.
 fn view_line(
     raw: &str,
     next: Option<&str>,

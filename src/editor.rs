@@ -1,4 +1,4 @@
-//! The built-in Markdown editor. It renders the document as you edit; the cursor line (or the
+//! The built-in Markdown editor. It renders the document as you edit. The cursor line (or the
 //! selection) shows its raw source. Text wraps at word boundaries and counts wide characters.
 
 use std::fs;

@@ -6,7 +6,7 @@ use ratatui::text::{Line, Span};
 
 use crate::theme::Theme;
 
-/// The case, row by row. The wedge is the characters 1 to 6 of the bottom row (amber); the rest is the case.
+/// The case, row by row. The wedge is the characters 1 to 6 of the bottom row (amber). The rest is the case.
 const CASE: [&str; 2] = ["⣤⠤⠤⠯⠽⠤⠤⣤", "⣿⣠⣄⣶⣼⣯⣇⣿"];
 
 /// The mark: two rows, 8 columns.

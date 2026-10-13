@@ -1,7 +1,7 @@
 use ratatui::style::Color;
 use std::sync::OnceLock;
 
-/// A dark stage and one signal: amber, the colour of a working brief. Done is plain text, todo is muted.
+/// A dark stage and one signal: amber, the color of a working brief. Done is plain text, todo is muted.
 pub struct Theme {
     pub bg: Color,
     pub surface: Color,
@@ -17,45 +17,81 @@ pub struct Theme {
     pub violet: Color,
 }
 
+/// (rgb, 256-color fallback) for bg, surface, line, text, muted, accent, accent_ink, bad, info, ok, violet.
+const PALETTE: [((u8, u8, u8), u8); 11] = [
+    ((0x07, 0x08, 0x0c), 233),
+    ((0x0e, 0x10, 0x16), 234),
+    ((0x2a, 0x2c, 0x34), 237),
+    ((0xf4, 0xf5, 0xf8), 255),
+    ((0xa9, 0xb0, 0xbe), 249),
+    ((0xff, 0xc4, 0x00), 220),
+    ((0x14, 0x0e, 0x00), 232),
+    ((0xff, 0x3b, 0x3b), 196),
+    ((0x7c, 0xc4, 0xff), 117),
+    ((0x8f, 0xe3, 0x8a), 114),
+    ((0xb9, 0x9c, 0xff), 141),
+];
+
+fn build(truecolor: bool) -> Theme {
+    let pick = |k: usize| {
+        let (rgb, indexed) = PALETTE[k];
+        if truecolor {
+            Color::Rgb(rgb.0, rgb.1, rgb.2)
+        } else {
+            Color::Indexed(indexed)
+        }
+    };
+    Theme {
+        bg: pick(0),
+        surface: pick(1),
+        line: pick(2),
+        text: pick(3),
+        muted: pick(4),
+        accent: pick(5),
+        accent_ink: pick(6),
+        bad: pick(7),
+        info: pick(8),
+        ok: pick(9),
+        violet: pick(10),
+    }
+}
+
+/// The palette the terminal can draw: truecolor when it says so, 256 colors otherwise.
 pub fn get() -> &'static Theme {
     static THEME: OnceLock<Theme> = OnceLock::new();
     THEME.get_or_init(|| {
         let truecolor = std::env::var("COLORTERM")
             .map(|v| v.contains("truecolor") || v.contains("24bit"))
             .unwrap_or(false);
-        let pick = |rgb: (u8, u8, u8), indexed: u8| {
-            if truecolor {
-                Color::Rgb(rgb.0, rgb.1, rgb.2)
-            } else {
-                Color::Indexed(indexed)
-            }
-        };
-        // (rgb, 256-colour fallback): bg, surface, line, text, muted, accent, accent_ink, bad, info, ok, violet
-        let c: [((u8, u8, u8), u8); 11] = [
-            ((0x07, 0x08, 0x0c), 233),
-            ((0x0e, 0x10, 0x16), 234),
-            ((0x2a, 0x2c, 0x34), 237),
-            ((0xf4, 0xf5, 0xf8), 255),
-            ((0xa9, 0xb0, 0xbe), 249),
-            ((0xff, 0xc4, 0x00), 220),
-            ((0x14, 0x0e, 0x00), 232),
-            ((0xff, 0x3b, 0x3b), 196),
-            ((0x7c, 0xc4, 0xff), 117),
-            ((0x8f, 0xe3, 0x8a), 114),
-            ((0xb9, 0x9c, 0xff), 141),
-        ];
-        Theme {
-            bg: pick(c[0].0, c[0].1),
-            surface: pick(c[1].0, c[1].1),
-            line: pick(c[2].0, c[2].1),
-            text: pick(c[3].0, c[3].1),
-            muted: pick(c[4].0, c[4].1),
-            accent: pick(c[5].0, c[5].1),
-            accent_ink: pick(c[6].0, c[6].1),
-            bad: pick(c[7].0, c[7].1),
-            info: pick(c[8].0, c[8].1),
-            ok: pick(c[9].0, c[9].1),
-            violet: pick(c[10].0, c[10].1),
-        }
+        build(truecolor)
     })
+}
+
+/// The same palette in RGB, whatever the terminal can do: HTML has no 256-color fallback, and a
+/// window keeps its own colors, whatever terminal started the daemon.
+pub fn rgb() -> &'static Theme {
+    static RGB: OnceLock<Theme> = OnceLock::new();
+    RGB.get_or_init(|| build(true))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn both_palettes_name_the_same_colors() {
+        let indexed = build(false);
+        let rgb = build(true);
+        for (a, b) in [
+            (indexed.bg, rgb.bg),
+            (indexed.accent, rgb.accent),
+            (indexed.text, rgb.text),
+            (indexed.violet, rgb.violet),
+        ] {
+            assert!(matches!(a, Color::Indexed(_)));
+            assert!(matches!(b, Color::Rgb(_, _, _)));
+        }
+        assert_eq!(rgb.accent, Color::Rgb(0xff, 0xc4, 0x00));
+        assert_eq!(rgb.bg, Color::Rgb(0x07, 0x08, 0x0c));
+    }
 }

@@ -15,17 +15,17 @@ does it, and reports in it.
 Create
   brie new \"<slug>\"   prints the path and makes the Scratch directory.
   Slug: lowercase words joined by hyphens, three words at most.
-  Name: DD_MM_YYYY_hh:mm_<slug>.md. Never rename or copy a brief.
+  Name: DD_MM_YYYY_HH:MM_<slug>.md. The name and the file stay for the life of the brief.
   The new brief has only a header: title, Status, Repo, Scratch. It has no sections.
 
 Write
-- One brief for each task. Keep it under one screen.
+- Write one brief for each task. Keep it under one screen.
 - Append your sections below the header of the brief that brie new made, once: ## Read, ## Do, ## Do not.
-  Never change a line already written, and never write a new brief file over it.
-- One imperative instruction for each numbered step. Put the condition before the command.
-- Under ## Read, name exact paths and say why each one matters. Link an issue, do not restate it.
+  Leave the lines already written as they are. Write a new task in a new brief.
+- Write one imperative instruction for each numbered step. Put the condition before the command.
+- Under ## Read, name exact paths and say why each one matters. Link an issue rather than restate it.
 - Put hard limits under ## Do not. A worker obeys a listed limit and ignores a hinted one.
-- Step 1 of ## Do is always: brie set <brief> working, before reading anything.
+- Make step 1 of ## Do this: brie set <brief> working. The worker sets it before it reads anything.
 
 Status
   todo      The Orchestrator wrote the brief.
@@ -36,17 +36,18 @@ Status is the only signal the Orchestrator trusts. A brief still on todo long af
 means the worker dropped the prompt.
 
 Append only
-A brief is never edited in place. Only the Status line changes, and only through brie set. New content goes at the bottom only.
+A brief grows only at the bottom. The Status line is the one line that changes in place, and only brie set changes it.
 A correction is a new entry, and the newest entry is the truth.
-The first brie set that leaves todo seals the brief. brie set, brie report, brie wait and brie doctor then warn if text above the
-sealed length changed.
+The first brie set that leaves todo seals the brief. After that, brie set, brie report, brie wait and brie doctor all warn
+when the text above the sealed length changes.
   brie set <brief> <status>   sets the Status line: todo, working, done or blocked.
   brie report <brief> <text>  appends to the bottom, under one ## Report heading (text from stdin if missing).
 The worker reports with Files, Commands run, Decisions, Open. One line for each item, no preamble.
 
 Wait
-  brie wait <brief> [--timeout seconds]
+  brie wait <brief>... [--timeout seconds] [--any] [--notify]
       Blocks. Prints each Status change. Exit 0 = done, 2 = blocked, 1 = timeout.
+      Waits for all the briefs by default. --any returns when the first one ends.
       Run it in the background.
   brie status [brief] [--all] [--status s] [--limit n] [--json]
       With no brief: counts by status, then the briefs that are not done, newest first, 20 at most.
@@ -55,7 +56,7 @@ Wait
 When wait returns, check the Report against the real diff and the project checks. Then accept.
 
 Scratch
-Every temporary file goes in the Scratch directory the brief names. Nothing lands elsewhere.
+Every temporary file goes in the Scratch directory the brief names.
 
 Remove
   brie rm <brief>   moves the brief and its Scratch directory to the Trash.
@@ -72,7 +73,7 @@ pub const DEFAULT_TEMPLATE: &str = "\
 # Brief — {{title}}
 
 Status: todo
-Repo: {{repo}}. Never read a path outside it.
+Repo: {{repo}}. Keep your reads and writes inside it.
 Scratch: `.prototype/{{stem}}/`. Every temporary file goes there.
 ";
 
@@ -90,22 +91,22 @@ const BLOCK_HEAD: &str = "\
 <!-- brie:start -->
 ## Briefs and prototypes (brie)
 
-`.briefs/` and `.prototype/` link into the brie store. Never replace them with folders. Never commit them.
+`.briefs/` and `.prototype/` are symlinks into the brie store. Write through them, and never commit them.
 
 - Orchestrator: `brie new`, `brie wait`, `brie status`. Rules: `brie contract orchestrator`.
-- Worker: your brief is your task. `brie set <brief> working` first, `brie report <brief> <text>`, `brie set <brief> done` last. Rules: `brie contract worker`.
-- Use the `brie` MCP tools if present. Never run bare `brie`: it opens a TUI.
+- Worker: your brief is your whole task. `brie set <brief> working` first, `brie report <brief> <text>`, `brie set <brief> done` last. Rules: `brie contract worker`.
+- Use the `brie` MCP tools when the client lists them. Otherwise run `brie` with a subcommand: a bare `brie` opens a blocking TUI.
 ";
 
 /// Only for a project that turned the memory on with `brie add --memory`.
 const BLOCK_MEMORY: &str = "\
-- Memory: read the log first with `memory_view` (`memory_zoom`, `memory_since` for detail). The Orchestrator logs decisions and corrections with `memory_add` (kind `note`). Workers read only.
+- Memory: read the view first (`memory_view`). When a word is not in it, run `memory_find`. For detail, run `memory_zoom` and `memory_since`. The Orchestrator logs decisions and corrections with `memory_add` (kind `note`). Workers read only.
 ";
 
 const BLOCK_TAIL: &str = "\
-- A write through `.briefs/` or `.prototype/` that asks for permission: tell the human to run `brie add` again. Never edit permission settings.
+- When a write through `.briefs/` or `.prototype/` asks for permission, tell the human to run `brie add` again.
 
-Managed by `brie add`; edits inside this block are replaced.
+Managed by `brie add`. Edits inside this block are replaced.
 <!-- brie:end -->";
 
 pub fn block(memory: bool) -> String {
@@ -130,7 +131,7 @@ fn splice(text: &str, block: &str) -> String {
     out
 }
 
-/// Write the block into the repo's `CLAUDE.md` and `AGENTS.md`; create `AGENTS.md` if neither exists.
+/// Write the block into the repo's `CLAUDE.md` and `AGENTS.md`. Create `AGENTS.md` when neither exists.
 /// Returns the files that changed.
 pub fn inject(repo: &Path, memory: bool) -> Res<Vec<PathBuf>> {
     let block = block(memory);
@@ -265,7 +266,7 @@ pub fn view(role: &str) -> String {
             pick(&["Create", "Write", "Status", "Append only", "Wait", "Remove", "Project rules"])
         ),
         "short" => "Brief contract: one brief for each task. Status: todo, working, done, blocked. The worker runs brie set working first and done last, \
-and brie report appends ## Report at the bottom; nothing else in a brief changes. Temporary files go in the Scratch directory. \
+and brie report appends ## Report at the bottom. Nothing else in a brief changes. Temporary files go in the Scratch directory. \
 `brie new` creates a brief, `brie wait` waits, `brie status` is the short report. Full text: `brie contract worker` or `brie contract orchestrator`.\n"
             .to_string(),
         _ => format!("{intro}{}", parts.iter().map(|(_, t)| t.clone()).collect::<Vec<_>>().join("\n")),

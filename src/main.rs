@@ -2,6 +2,7 @@ mod agent;
 mod contract;
 mod daemon;
 mod editor;
+mod html;
 mod json;
 mod logo;
 mod maint;
@@ -14,6 +15,7 @@ mod serve;
 mod store;
 mod theme;
 mod tui;
+mod view;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -62,6 +64,7 @@ usage:
   brie serve stop <port|pid:N|all>
                                 stop servers and everything they started
   brie serve approve <dir>      approve the brie.run in a directory (needs a terminal)
+  brie view <path>              draw a file in the whole terminal: Markdown rendered, read only
   brie open <path>              open a file with the system viewer (PDF, image, design, ...)
   brie mcp [--worker]           the brief commands as MCP tools over stdio (--worker: status, read,
                                 set status, report, scratch, contract only)
@@ -80,6 +83,8 @@ usage:
   brie memory sync              log what the briefs gained, then build the summary tree
   brie memory build             build the summary tree and merge the views down (64 KB and 16 KB)
   brie memory view              the view: summary lines that cover the whole log (128 KB at most)
+  brie memory find <words>      where the words appear: the messages, and the lines over them as id+n
+                                (--limit n, --log, --lines, --exact, --full)
   brie memory zoom <id> <n>     open line id+n into its two lines; n = 1 gives message id whole
   brie memory zoom <Name>       a subagent's whole chat
   brie memory since <id>        the messages after id, whole
@@ -557,6 +562,10 @@ fn run(mut args: Vec<String>) -> Res<()> {
                 }
             }
         },
+        "view" => {
+            let arg = args.first().ok_or("usage: brie view <path>")?;
+            view::run(&store::expand(arg))?;
+        }
         "open" => {
             let arg = args.first().ok_or("usage: brie open <path>")?;
             let path = std::fs::canonicalize(store::expand(arg))?;

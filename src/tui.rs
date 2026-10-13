@@ -63,7 +63,7 @@ const HELP: [(&str, &str); 24] = [
     ("v", "servers (x kill · X kill all · enter open · l log)"),
     (
         "m",
-        "memory window (zoom the log · a add · t turn · u subagent · s sync · b build)",
+        "memory window (view · outline · agents, a add, s sync, b build)",
     ),
     ("r", "reveal in the file manager"),
     ("R", "reload"),
@@ -1023,7 +1023,7 @@ impl App {
         }
     }
 
-    /// 2/3 jump to a tab (showing the items pane); pressed on the active tab they hide it again.
+    /// 2/3 jump to a tab (showing the items pane). On the active tab they hide it again.
     fn goto_tab(&mut self, kind: Kind) {
         if self.kind == kind && self.show[1] {
             self.toggle_pane(1);
@@ -1175,7 +1175,7 @@ impl App {
         self.load_items();
     }
 
-    /// Enter on a prototype: a web page or folder is served; any other file opens in the system viewer.
+    /// Enter on a prototype: a web page or folder is served. Any other file opens in the system viewer.
     fn open_prototype(&mut self, path: &Path) {
         let web = path.is_dir()
             || path
@@ -1712,7 +1712,7 @@ impl App {
         );
     }
 
-    /// A framed pane on the surface colour. The focused pane has an amber frame.
+    /// A framed pane on the surface color. The focused pane has an amber frame.
     fn pane<'a>(&self, title: Line<'a>, on: bool, t: &Theme) -> Block<'a> {
         Block::bordered()
             .title(title)

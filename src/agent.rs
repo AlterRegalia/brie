@@ -1,6 +1,6 @@
 //! Turns and subagents for `brie memory`. An agent is a shell command (`$BRIE_AGENT`) that reads a prompt on
 //! stdin and prints its work on stdout. With `claude -p --output-format stream-json --verbose` every reply,
-//! tool call and tool result is logged as it happens; any other command is logged as one reply.
+//! tool call and tool result is logged as it happens. Any other command is logged as one reply.
 
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
@@ -16,7 +16,7 @@ use crate::store::{Project, Res};
 
 const TURN_PROMPT: &str = "\
 You are an AI agent that works for one user, in a single chat that never ends. Each call to you is a turn:
-the view below is followed by the user's new message.
+the view below comes first, then the new message from the user.
 
 # The view
 
@@ -32,16 +32,17 @@ Each message has a kind:
 - work: a worker's report, starting \"[Name]\"
 - note: memories from before this chat
 
-The summaries form a binary tree: each message is compressed into a line (a short message is its own line), then
-adjacent lines are merged in pairs, again and again. So recent lines cover one message each, and older lines cover
-more. A message not summarized yet shows as \"(not summarized yet: zoom it)\". A text too long for one message is
-split over several in a row.
+The summaries form a binary tree. The memory compresses each message into a line (a short message is its own
+line), then merges adjacent lines in pairs, then merges those results in pairs again. Thus recent lines cover
+one message each, and older lines cover more. A message not summarized yet shows as \"(not summarized yet:
+zoom it)\". A text too long for one message is split over several in a row.
 
-Tools (the brie MCP tools memory_zoom, memory_date and memory_since, or the same commands in a shell):
-- `brie memory zoom <id> <n>` opens line id+n into the two lines it was made from;
-- `brie memory zoom <id> 1` gives message id whole;
-- `brie memory zoom <Name>` gives a subagent's whole chat;
-- `brie memory date <id>` gives the date and time of message id;
+Tools (the brie MCP tools memory_find, memory_zoom, memory_date and memory_since, or the same commands in a shell):
+- `brie memory find <words>`: use it when the view does not say where something is. It gives the messages
+  that hold the words, and the lines over them as id+n.
+- `brie memory zoom <id> <n>` opens line id+n into the two lines it was made from. `<n> = 1` gives message
+  id whole. `<Name>` alone gives a subagent's whole chat.
+- `brie memory date <id>` gives the date and time of message id.
 - `brie memory since <id>` gives the messages after id, whole.
 
 # Turns
@@ -49,14 +50,14 @@ Tools (the brie MCP tools memory_zoom, memory_date and memory_since, or the same
 Do the user's tasks yourself, with your tools. Use subagents (`brie memory sub <Name> <task>`) only when the user
 asks for them.
 
-The view is your memory, and its latest word on a thing is the truth. Whenever you need any information, first find
-its latest mention in the view and zoom until you have it whole, before any other source, and before you act, guess
-or ask. Never grep or search memories manually; zoom is your only way to navigate the tree. Summaries keep little of
-tool output, so say in your reply what you learned that will matter later.
+The view is your memory, and its latest word on a subject is the truth. When you need information, find its latest
+mention in the view first, and zoom until you have it whole. Do that before you use another source, and before you
+act, guess or ask. Zoom is the way down the tree. Summaries keep little of tool output, so say in your reply what
+you learned that will matter later.
 
-Messages the user sends while you work are filed in the chat: between tool calls, run `brie memory since <id>` with
+Messages the user sends while you work are filed in the chat. Between tool calls, run `brie memory since <id>` with
 the id of the last message you have seen. A subagent's report reaches the chat as a message starting \"[Name]\".
-Never wait for one (no sleep, no polling): go on, or end your turn and tell the user what is running.
+Go on with your own work while a subagent runs, or end your turn and tell the user what is running.
 ";
 
 /// The agent command, from `$BRIE_AGENT`.
@@ -227,7 +228,7 @@ fn run_agent(
 
 /// One turn: build the tree, take the view, log the user's message, run the agent on `[view] [message]`,
 /// log what it does as it does it, and file the messages that others send meanwhile. `show` gets the reply as
-/// soon as it is known; then the tree is built for the messages of this turn, so the next one starts at once.
+/// soon as it is known. Then the tree is built for the messages of this turn, so the next one starts at once.
 pub fn turn(
     repo: &Path,
     dir: &Path,
@@ -272,7 +273,7 @@ fn valid_name(name: &str) -> bool {
 }
 
 /// Start a subagent in the background: a fresh call whose first message is the view, then its task. Its own
-/// steps go to `agents/<Name>/chat.log`; its final reply comes back to the chat as one `work` message.
+/// steps go to `agents/<Name>/chat.log`. Its final reply comes back to the chat as one `work` message.
 pub fn sub(project: &Project, dir: &Path, name: &str, task: &str) -> Res<String> {
     if !valid_name(name) {
         return Err("a name is letters, digits, - and _".into());

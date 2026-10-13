@@ -1,6 +1,7 @@
 //! `brie daemon`: a menu bar item (macOS). Beside the icon it shows the working and blocked counts as pills, or as a dot on the icon. Clicking it opens a
 //! small panel (a borderless window with a web view, `panel.html`): a search field, one row for each project with open
-//! briefs that expands to its briefs (click one to reveal it in Finder, or copy its path), the last done briefs,
+//! briefs that expands to its briefs (click one to open it in a brie window of its own, or use a button to
+//! open a Terminal, reveal it in Finder or copy its path), the last done briefs,
 //! and the actions Refresh, Open store, Send test push, Pills in menu bar, Start at login and Quit.
 //! From a terminal, `brie daemon` makes sure the daemon runs in the background, then asks: 1 quit it, 2 keep it.
 
@@ -12,6 +13,7 @@ use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
+use crate::html;
 use crate::maint;
 use crate::store::{self, Kind, Res};
 
@@ -51,7 +53,7 @@ struct Row {
 /// Everything the dropdown shows. It is rebuilt only when this changes.
 #[derive(Clone, PartialEq, Default)]
 struct Snapshot {
-    /// Working, then todo, then blocked; newest first in a group.
+    /// Working, then todo, then blocked. Newest first in a group.
     open: Vec<Row>,
     /// The last few done briefs, newest first.
     done: Vec<Row>,
@@ -130,8 +132,8 @@ fn summary(rows: &[Row]) -> String {
     )
 }
 
-/// How the menu bar shows the counts: `Pills` draws a pill for working and one for blocked beside the icon;
-/// `Icon` puts a dot on the icon (red if a brief is blocked, else amber if one is working) and the working count as text.
+/// How the menu bar shows the counts: `Pills` draws a pill for working and one for blocked beside the icon.
+/// `Icon` puts a dot on the icon (red if a brief is blocked, amber if one is working) and the working count as text.
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum BarStyle {
     Pills,
@@ -376,7 +378,7 @@ fn autostart_on() -> bool {
     plist_path().exists()
 }
 
-/// Write or remove the launchd agent. It takes effect at the next login; this daemon keeps running.
+/// Write or remove the launchd agent. It takes effect at the next login. This daemon keeps running.
 fn set_autostart(on: bool) -> Res<()> {
     let path = plist_path();
     if !on {
@@ -645,11 +647,16 @@ fn tray() -> Res<()> {
         .map_err(|e| e.to_string())?;
     // The system draws its own edge and shadow around a window; the panel has its own border.
     window.set_has_shadow(false);
+    let panel = window.id();
     let webview = WebViewBuilder::new()
         .with_transparent(true)
         .with_html(include_str!("panel.html"))
-        .with_ipc_handler(move |req| {
-            let _ = proxy.send_event(Ev::Ipc(req.body().clone()));
+        .with_ipc_handler({
+            // the panel's own proxy; the one that outlives it opens brief windows
+            let proxy = proxy.clone();
+            move |req| {
+                let _ = proxy.send_event(Ev::Ipc(req.body().clone()));
+            }
         })
         .build(&window)
         .map_err(|e| e.to_string())?;
@@ -673,7 +680,49 @@ fn tray() -> Res<()> {
     paint(&tray, &snap);
     let mut hidden_at = Instant::now() - Duration::from_secs(1);
 
-    event_loop.run(move |event, _, flow| {
+    /// One brief in one window. Kept alive here for as long as the window is open.
+    struct Viewer {
+        token: String,
+        window: tao::window::Window,
+        _web: wry::WebView,
+    }
+
+    /// A brief in its own window, drawn by the same renderer as the TUI (`html`). The window is the
+    /// panel's web view with a file in it. It closes with its own button or with escape.
+    fn brief_window(
+        target: &tao::event_loop::EventLoopWindowTarget<Ev>,
+        path: &std::path::Path,
+        token: String,
+        proxy: tao::event_loop::EventLoopProxy<Ev>,
+    ) -> Result<Viewer, String> {
+        let source = fs::read_to_string(path).map_err(|e| e.to_string())?;
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let page = html::page(&name, &path.display().to_string(), &source, &token);
+        let window = WindowBuilder::new()
+            .with_title(format!("brie — {name}"))
+            .with_inner_size(LogicalSize::new(780.0, 720.0))
+            .build(target)
+            .map_err(|e| e.to_string())?;
+        let web = WebViewBuilder::new()
+            .with_html(page)
+            .with_ipc_handler(move |req| {
+                let _ = proxy.send_event(Ev::Ipc(req.body().clone()));
+            })
+            .build(&window)
+            .map_err(|e| e.to_string())?;
+        Ok(Viewer {
+            token,
+            window,
+            _web: web,
+        })
+    }
+
+    let mut viewers: Vec<Viewer> = vec![];
+    let mut tokens = 0;
+    event_loop.run(move |event, target, flow| {
         *flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_secs(5));
         let push_data = |snap: &Snapshot| {
             let _ = webview.evaluate_script(&format!(
@@ -693,18 +742,25 @@ fn tray() -> Res<()> {
                 }
             }
             Event::WindowEvent {
+                window_id,
                 event: WindowEvent::Focused(false),
                 ..
-            } => {
+            } if window_id == panel => {
                 if window.is_visible() {
                     window.set_visible(false);
                     hidden_at = Instant::now();
                 }
             }
             Event::WindowEvent {
+                window_id,
                 event: WindowEvent::CloseRequested,
                 ..
-            } => window.set_visible(false),
+            } if window_id == panel => window.set_visible(false),
+            Event::WindowEvent {
+                window_id,
+                event: WindowEvent::CloseRequested,
+                ..
+            } => viewers.retain(|v| v.window.id() != window_id),
             Event::UserEvent(Ev::Tray(TrayIconEvent::Click {
                 rect,
                 button: MouseButton::Left,
@@ -739,6 +795,19 @@ fn tray() -> Res<()> {
                 };
                 match action {
                     "open" if known(arg) => open_in_terminal(std::path::Path::new(arg)),
+                    "view" if known(arg) => {
+                        tokens += 1;
+                        let token = tokens.to_string();
+                        match brief_window(target, std::path::Path::new(arg), token, proxy.clone())
+                        {
+                            Ok(v) => {
+                                v.window.set_focus();
+                                viewers.push(v);
+                            }
+                            Err(e) => eprintln!("brie: {arg}: {e}"),
+                        }
+                    }
+                    "view-close" => viewers.retain(|v| v.token != arg),
                     "reveal" if known(arg) => store::reveal(std::path::Path::new(arg)),
                     "copy" if known(arg) => copy_to_clipboard(arg),
                     "refresh" => {
@@ -781,6 +850,23 @@ fn tray() -> Res<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_panel_asks_for_bries_window_and_keeps_a_way_to_the_terminal() {
+        let panel = include_str!("panel.html");
+        assert!(
+            panel.contains(r#"post("view\t" + brief.dataset.path)"#),
+            "a brief row opens brie's own window"
+        );
+        assert!(
+            panel.contains(r#"post("open\t" + term.dataset.term)"#),
+            "and a button still opens a Terminal"
+        );
+        assert!(
+            panel.contains("data-term="),
+            "the button exists on every row"
+        );
+    }
 
     #[test]
     fn one_quits_two_stays_and_other_keys_do_nothing() {

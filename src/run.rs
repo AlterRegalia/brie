@@ -1,5 +1,5 @@
 //! Running a prototype: the built-in static server, Vite, or any command from `--cmd` or a `brie.run`
-//! manifest. A manifest runs code an agent may have written, so it needs a person's approval first.
+//! manifest. A manifest runs code from an agent, so a person must approve it first.
 
 use std::fs::{self, File};
 use std::io::{BufRead, IsTerminal, Read, Seek, SeekFrom, Write};
@@ -222,7 +222,7 @@ pub fn tail(path: &Path, lines: usize) -> String {
     all[all.len().saturating_sub(lines)..].join("\n")
 }
 
-/// Wait for `port`. Err when the child exits first; `Ok(false)` when it lives but the wait ran out.
+/// Wait for `port`. It returns `Err` when the child exits first, and `Ok(false)` when it lives but the wait ran out.
 fn wait_ready(child: &mut Child, port: u16, wait_ms: u64, log: &Path) -> std::io::Result<bool> {
     let deadline = Instant::now() + Duration::from_millis(wait_ms);
     loop {
@@ -488,7 +488,7 @@ pub fn log_of(target: &Target) -> Option<PathBuf> {
         .map(|e| PathBuf::from(e.log))
 }
 
-/// Print the end of a log; with `follow`, keep printing what is added.
+/// Print the end of a log. With `follow`, keep printing what is added.
 pub fn show_log(path: &Path, follow: bool) -> Res<()> {
     println!("{}", tail(path, 80));
     if !follow {

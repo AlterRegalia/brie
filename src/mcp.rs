@@ -19,9 +19,9 @@ struct Tool {
     name: &'static str,
     worker: bool,
     desc: &'static str,
-    /// (name, type, description); `array` means an array of strings.
+    /// Each property is (name, type, description). `array` means an array of strings.
     props: &'static [(&'static str, &'static str, &'static str)],
-    /// With `--worker`, only these properties are shown; the rest still work if sent.
+    /// With `--worker`, the tool shows only these properties. The rest still work if a client sends them.
     worker_props: Option<&'static [&'static str]>,
     required: &'static [&'static str],
 }
@@ -149,6 +149,30 @@ const TOOLS: &[Tool] = &[
         props: &[("project", "string", "")],
         worker_props: None,
         required: &[],
+    },
+    Tool {
+        name: "memory_find",
+        worker: true,
+        desc: "Search the project's memory for words, all of which must appear (\"two words\" stays one). Gives the messages that mention them, and the summary lines over them, each as id+n for memory_zoom. Use it when memory_view does not say where something is: a word the compactions dropped is still in the messages.",
+        props: &[
+            ("words", "string", "the words to look for"),
+            ("limit", "number", "how many hits each way, default 10"),
+            ("log", "boolean", "only the messages"),
+            ("lines", "boolean", "only the summary lines"),
+            (
+                "exact",
+                "boolean",
+                "every line that matched, not only the coarsest over them",
+            ),
+            (
+                "full",
+                "boolean",
+                "the whole line, not a window around the hit",
+            ),
+            ("project", "string", ""),
+        ],
+        worker_props: None,
+        required: &["words"],
     },
     Tool {
         name: "memory_zoom",
@@ -526,6 +550,27 @@ fn call(name: &str, args: &Json) -> Result<String, String> {
         "memory_view" | "memory_status" => {
             let sub = name.trim_start_matches("memory_");
             memory::run(&project(args)?, &[sub.to_string()]).map_err(|e| e.to_string())
+        }
+        "memory_find" => {
+            let words = text(args, "words").ok_or("words is required")?;
+            let mut a = vec!["find".to_string(), words];
+            if let Some(n) = args.get("limit").and_then(Json::num) {
+                a.push("--limit".to_string());
+                a.push((n.max(0.0) as u64).to_string());
+            }
+            if Json::bool(args.get("log").unwrap_or(&Json::Null)).unwrap_or(false) {
+                a.push("--log".to_string());
+            }
+            if Json::bool(args.get("lines").unwrap_or(&Json::Null)).unwrap_or(false) {
+                a.push("--lines".to_string());
+            }
+            if Json::bool(args.get("exact").unwrap_or(&Json::Null)).unwrap_or(false) {
+                a.push("--exact".to_string());
+            }
+            if Json::bool(args.get("full").unwrap_or(&Json::Null)).unwrap_or(false) {
+                a.push("--full".to_string());
+            }
+            memory::run(&project(args)?, &a).map_err(|e| e.to_string())
         }
         "memory_zoom" | "memory_date" | "memory_since" | "memory_add" | "memory_sub" => {
             let num = |k: &str| {

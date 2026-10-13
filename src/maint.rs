@@ -191,8 +191,8 @@ pub fn backup() -> Res<String> {
     Ok(format!("backed up to {}", store::root().display()))
 }
 
-/// Back up, then pull and push a git remote. Briefs only grow at the bottom, so a clash is rare;
-/// when one happens the rebase is undone and the files are named.
+/// Back up, then pull and push a git remote. Briefs only grow at the bottom, so a clash is rare.
+/// When one happens, the rebase is undone and the files are named.
 pub fn sync(remote: Option<&str>) -> Res<String> {
     let mut notes = vec![backup()?];
     if let Some(url) = remote {

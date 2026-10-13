@@ -7,7 +7,7 @@
 //! the end and coarse far back. `inbox/` holds messages that wait for the process that owns the log.
 //! Sizes are UTF-8 bytes.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -66,7 +66,7 @@ echo: ...\"), and credit quoted text to its real author. Never make anything loo
 was. If told the line is too long, shorten it. Non-ASCII characters cost 2-4 bytes.
 ";
 
-/// Writes one line of at most `NODE_MAX` bytes. `prompt` is the whole task; `parts` is the text to
+/// Writes one line of at most `NODE_MAX` bytes. `prompt` is the whole task. `parts` is the text to
 /// compress (one message, or two lines), for a summarizer that does not read the prompt.
 pub trait Summarizer: Sync {
     fn run(&self, prompt: &str, parts: &[&str]) -> Res<String>;
@@ -302,7 +302,7 @@ fn read_lines(dir: &Path) -> Vec<String> {
     out
 }
 
-/// A tool's result keeps its head and tail, 30,000 characters in all; any other long text is never cut.
+/// A tool's result keeps its head and tail, 30,000 characters in all. Any other long text is never cut.
 fn clip(text: &str) -> String {
     const MARK: &str = "\n[... clipped ...]\n";
     let count = text.chars().count();
@@ -417,7 +417,7 @@ fn view_from(saved: &Json, lines_key: &str, batch_key: &str) -> View {
 
 impl Memory {
     /// Open the memory in `dir`. `write` takes the lock, so only one process builds or appends, and files the
-    /// inbox. It fails when another live process holds the lock; use `open_try` to queue instead.
+    /// inbox. It fails when another live process holds the lock. Use `open_try` to queue instead.
     pub fn open(dir: &Path, write: bool) -> Res<Memory> {
         match Memory::open_try(dir, write)? {
             Some(m) => Ok(m),
@@ -514,7 +514,7 @@ impl Memory {
         self.next.get(l as usize).copied().unwrap_or(0)
     }
 
-    /// Log a message. A long text becomes several messages in a row; a tool result is clipped first.
+    /// Log a message. A long text becomes several messages in a row. A tool result is clipped first.
     /// Returns how many messages were added.
     pub fn append(&mut self, kind: &str, text: &str) -> Res<usize> {
         if !KINDS.contains(&kind) {
@@ -712,6 +712,11 @@ impl Memory {
         self.view.lines.clone()
     }
 
+    /// The coarsest level that has a line, or 0 on an empty memory.
+    pub fn top_level(&self) -> u32 {
+        (self.next.len() as u32).saturating_sub(1)
+    }
+
     /// The summary of node `(l, i)`, when it is built.
     pub fn node(&self, l: u32, i: u64) -> Option<&str> {
         self.nodes.get(&(l, i)).map(String::as_str)
@@ -722,6 +727,39 @@ impl Memory {
         self.msgs
             .get(id as usize)
             .map(|m| (m.kind.as_str(), m.date.as_str(), m.text.as_str()))
+    }
+
+    /// How many messages the log holds.
+    pub fn messages(&self) -> u64 {
+        self.msgs.len() as u64
+    }
+
+    /// Every brief the log names, oldest mention first.
+    ///
+    /// A thread is a brief's own name (`DD_MM_YYYY_HH:MM_slug`), wherever a message spells it: bare,
+    /// in brackets, or inside a `.briefs/…md` path. All three name the same brief, and a brief named
+    /// twice in one message is one mention of it. A code fragment in brackets (`[N-2]`) is not a
+    /// brief and is not a thread, which is why the name is tested for its shape and not looked up.
+    pub fn threads(&self) -> Vec<Thread> {
+        let mut at: HashMap<String, usize> = HashMap::new();
+        let mut out: Vec<Thread> = vec![];
+        for (i, m) in self.msgs.iter().enumerate() {
+            for name in brief_names(&m.text) {
+                match at.get(&name) {
+                    Some(&k) => out[k].mentions.push(i as u64),
+                    None => {
+                        at.insert(name.clone(), out.len());
+                        out.push(Thread {
+                            name,
+                            mentions: vec![i as u64],
+                        });
+                    }
+                }
+            }
+        }
+        // The log is walked in order, so a first mention is already the order; sorting is the promise.
+        out.sort_by(|a, b| (a.mentions[0], &a.name).cmp(&(b.mentions[0], &b.name)));
+        out
     }
 
     fn view_bytes(&self) -> usize {
@@ -753,7 +791,7 @@ impl Memory {
         format!("<chat>\n{lines}</chat>\n")
     }
 
-    /// Open line `id+n` into the two lines it was made from; `n` = 1 gives the message whole.
+    /// Open line `id+n` into the two lines it was made from. `n` = 1 gives the message whole.
     pub fn zoom(&self, id: u64, n: u64) -> Res<String> {
         if !n.is_power_of_two() || !id.is_multiple_of(n) {
             return Err("n is a power of 2 and id a multiple of n".into());
@@ -799,6 +837,128 @@ impl Memory {
         }
     }
 
+    /// `brie memory find`: where the words appear, in the summary lines and in the messages.
+    ///
+    /// The lines are the cheap half. A hit there comes with its `id+n`, which is what `zoom` takes, so
+    /// the caller opens the line instead of hunting for it. Only the coarsest hits are listed: a hit
+    /// whose ancestor is also a hit would say nothing the ancestor does not. The messages are the half
+    /// the summaries cannot give — a word the compactions dropped is still in the log.
+    pub fn find(
+        &self,
+        words: &str,
+        limit: usize,
+        exact: bool,
+        lines: bool,
+        log: bool,
+        full: bool,
+    ) -> String {
+        let pats = pats(words);
+        if pats.is_empty() {
+            return "give words to look for\n".to_string();
+        }
+        let (lines, log) = if !lines && !log {
+            (true, true)
+        } else {
+            (lines, log)
+        };
+        let hits: Vec<(u32, u64)> = self
+            .nodes
+            .iter()
+            .filter(|(_, t)| matches(t, &pats))
+            .map(|(&k, _)| k)
+            .collect();
+        let found: HashSet<(u32, u64)> = hits.iter().copied().collect();
+        let mut shown: Vec<(u32, u64)> = if exact {
+            hits.clone()
+        } else {
+            hits.iter()
+                .copied()
+                .filter(|&(l, i)| !has_hit_ancestor(&found, l, i))
+                .collect()
+        };
+        shown.sort_by(|a, b| b.cmp(a));
+        let msgs: Vec<u64> = self
+            .msgs
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| matches(&m.text, &pats))
+            .map(|(i, _)| i as u64)
+            .collect();
+
+        let mut out = format!(
+            "\"{words}\": {} line(s) mention it, {} message(s) mention it\n",
+            hits.len(),
+            msgs.len()
+        );
+        if msgs.is_empty() && hits.is_empty() {
+            out.push_str(
+                "\nnowhere in the memory. Try fewer words, or the name as the log spells it.\n",
+            );
+            return out;
+        }
+        if log && !msgs.is_empty() {
+            out.push_str("\nmessages, `brie memory zoom <id> 1` reads one whole:\n");
+            for &id in msgs.iter().take(limit) {
+                let m = &self.msgs[id as usize];
+                out.push_str(&format!(
+                    "  {id:<5} {:<5} {:<16} {}\n",
+                    m.kind,
+                    m.date,
+                    snippet(&m.text, &pats, if full { usize::MAX } else { 200 })
+                ));
+            }
+            if msgs.len() > limit {
+                out.push_str(&format!("  … {} more\n", msgs.len() - limit));
+            }
+        }
+        if lines && !shown.is_empty() {
+            out.push_str("\nthe lines those sit in, `brie memory zoom <id> <n>` opens one:\n");
+            for &(l, i) in shown.iter().take(limit) {
+                let n = 1u64 << l;
+                out.push_str(&format!(
+                    "  {}+{n:<8} covers {n} message(s) from {:<6} {}\n",
+                    i << l,
+                    i << l,
+                    snippet(
+                        self.node(l, i).unwrap_or("(not summarized yet)"),
+                        &pats,
+                        if full { usize::MAX } else { 160 }
+                    )
+                ));
+                if let Some((vl, vi, steps)) = self.view_over(l, i) {
+                    let coord = format!("{}+{}", vi << vl, 1u64 << vl);
+                    out.push_str(&if steps > 0 {
+                        format!("           the view has {coord} over it: {steps} zoom(s) down\n")
+                    } else if steps == 0 {
+                        format!("           the view line is this one: {coord}\n")
+                    } else {
+                        format!("           the view is already finer here: {coord}\n")
+                    });
+                }
+            }
+            if shown.len() > limit {
+                out.push_str(&format!("  … {} more\n", shown.len() - limit));
+            }
+        }
+        out
+    }
+
+    /// The view line over message `i << l`, and how many zooms reach node `(l, i)` from it. A node
+    /// coarser than its view line cannot be reached by zooming and does not need to be: the view line
+    /// inside it is finer.
+    pub fn view_over(&self, l: u32, i: u64) -> Option<(u32, u64, i32)> {
+        let start = i << l;
+        let mut at = 0;
+        for &(vl, vi) in &self.view.lines {
+            let n = 1u64 << vl;
+            if at <= start && start < at + n {
+                return Some((vl, vi, vl as i32 - l as i32));
+            }
+            at += n;
+        }
+        None
+    }
+
     pub fn status(&self) -> String {
         let unbuilt = self
             .view
@@ -820,7 +980,7 @@ impl Memory {
 
     /// Log what the briefs gained since the last call. A brief only grows at the end, so the text outside
     /// the `Status:` line is read as one body and only its new tail is logged. The brief is a `user`
-    /// message; what follows `## Report` is a `work` message; a status change is a `work` message.
+    /// message. What follows `## Report` is a `work` message. A status change is a `work` message.
     pub fn ingest(&mut self, project: &Project) -> Res<usize> {
         let state_path = self.dir.join("ingest.json");
         let state = fs::read_to_string(&state_path)
@@ -946,7 +1106,7 @@ pub fn run(project: &Project, args: &[String]) -> Res<String> {
 }
 
 /// `brie memory sync`, for callers that must not fail on it (`brie wait`).
-/// Returns the one-line result, or the error text; `None` when the project keeps no memory.
+/// Returns the one-line result, or the error text. It returns `None` when the project keeps no memory.
 pub fn sync_quiet(project: &Project) -> Option<String> {
     if !store::memory_enabled(&project.name) {
         return None;
@@ -1004,6 +1164,30 @@ pub fn run_in(dir: &Path, project: &Project, args: &[String]) -> Res<String> {
             Ok(out)
         }
         "view" => Ok(Memory::open(&dir, false)?.render()),
+        "find" => {
+            let (mut limit, mut exact, mut lines, mut log, mut full) =
+                (10, false, false, false, false);
+            let mut words: Vec<String> = vec![];
+            let mut it = args[1..].iter();
+            while let Some(a) = it.next() {
+                match a.as_str() {
+                    "--limit" => limit = it.next().and_then(|n| n.parse().ok()).unwrap_or(limit),
+                    "--exact" => exact = true,
+                    "--lines" => lines = true,
+                    "--log" => log = true,
+                    "--full" => full = true,
+                    other => words.push(other.to_string()),
+                }
+            }
+            let words = if words.is_empty() {
+                let mut t = String::new();
+                std::io::stdin().read_to_string(&mut t)?;
+                t.trim_end().to_string()
+            } else {
+                words.join(" ")
+            };
+            Ok(Memory::open(&dir, false)?.find(&words, limit, exact, lines, log, full))
+        }
         "zoom" => match args.get(1).map(|a| a.parse::<u64>()) {
             Some(Ok(id)) => Memory::open(&dir, false)?.zoom(id, number(2, "<id> <n>")?),
             Some(Err(_)) => agent::chat(&dir, &args[1]),
@@ -1038,6 +1222,160 @@ pub fn run_in(dir: &Path, project: &Project, args: &[String]) -> Res<String> {
     }
 }
 
+/// The words to look for, lowercased. `"two words"` stays one pattern. Everything else is split on
+/// whitespace and every pattern must be found.
+fn pats(words: &str) -> Vec<String> {
+    let mut out = vec![];
+    let mut cur = String::new();
+    let mut quoted = false;
+    for c in words.chars() {
+        if c == '"' {
+            quoted = !quoted;
+        } else if c.is_whitespace() && !quoted {
+            if !cur.is_empty() {
+                out.push(std::mem::take(&mut cur).to_lowercase());
+            }
+        } else {
+            cur.push(c);
+        }
+    }
+    if !cur.is_empty() {
+        out.push(cur.to_lowercase());
+    }
+    out
+}
+
+fn matches(text: &str, pats: &[String]) -> bool {
+    let t = text.to_lowercase();
+    pats.iter().all(|p| t.contains(p.as_str()))
+}
+
+/// Whether a coarser line contains `(l, i)` and was found too. Levels stop at 40, far past any log.
+fn has_hit_ancestor(found: &HashSet<(u32, u64)>, mut l: u32, mut i: u64) -> bool {
+    for _ in 0..40 {
+        l += 1;
+        i /= 2;
+        if found.contains(&(l, i)) {
+            return true;
+        }
+    }
+    false
+}
+
+/// `width` bytes of `text` around the first word found. Every brief opens with the same few lines, so
+/// the head of a message says nothing about why it matched.
+fn snippet(text: &str, pats: &[String], width: usize) -> String {
+    let flat: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if flat.len() <= width {
+        return flat;
+    }
+    let low = flat.to_lowercase();
+    let at = pats
+        .iter()
+        .filter_map(|p| low.find(p.as_str()))
+        .min()
+        .unwrap_or(0);
+    let start = char_boundary(&flat, at.saturating_sub(width / 3));
+    let end = char_boundary(&flat, (start + width).min(flat.len()));
+    format!(
+        "{}{}{}",
+        if start > 0 { "…" } else { "" },
+        &flat[start..end],
+        if end < flat.len() { "…" } else { "" }
+    )
+}
+
+/// The nearest boundary at or below `at`, so a snippet never splits a character.
+fn char_boundary(s: &str, at: usize) -> usize {
+    let mut at = at.min(s.len());
+    while at > 0 && !s.is_char_boundary(at) {
+        at -= 1;
+    }
+    at
+}
+
+/// A brief the log names: its own name, and the messages that name it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Thread {
+    /// `DD_MM_YYYY_HH:MM_slug`, the brief's own name, without a `.md` suffix.
+    pub name: String,
+    /// The ids of the messages that name it, ascending, once per message.
+    pub mentions: Vec<u64>,
+}
+
+impl Thread {
+    /// The slug alone: `09_10_2026_09:52_proceed-starts-round` reads `proceed-starts-round`.
+    /// The date is on the timeline, so the lane's label does not repeat it.
+    pub fn slug(&self) -> &str {
+        self.name.splitn(5, '_').nth(4).unwrap_or(&self.name)
+    }
+}
+
+/// The length of the brief name that starts at `at` in `b`, when one does.
+///
+/// The shape is `DD_MM_YYYY_HH:MM_slug`: five number groups, and a slug of lower-case words joined
+/// by hyphens. `brief_names` reads the slug to its end, so a `.md` or a path around it is not part
+/// of the name.
+fn brief_at(b: &[u8], at: usize) -> Option<usize> {
+    let digits = |from: usize, n: usize| {
+        b.get(from..from + n)
+            .is_some_and(|s| s.iter().all(u8::is_ascii_digit))
+    };
+    let sep = |i: usize, c: u8| b.get(i) == Some(&c);
+    let shaped = digits(at, 2)
+        && sep(at + 2, b'_')
+        && digits(at + 3, 2)
+        && sep(at + 5, b'_')
+        && digits(at + 6, 4)
+        && sep(at + 10, b'_')
+        && digits(at + 11, 2)
+        && sep(at + 13, b':')
+        && digits(at + 14, 2)
+        && sep(at + 16, b'_');
+    if !shaped {
+        return None;
+    }
+    let slug = |c: &u8| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == b'-';
+    let first = b.get(at + 17)?;
+    if !(first.is_ascii_lowercase() || first.is_ascii_digit()) {
+        return None;
+    }
+    let mut end = at + 17;
+    while b.get(end).is_some_and(slug) {
+        end += 1;
+    }
+    Some(end - at)
+}
+
+/// Whether `name` is a brief's own name, `DD_MM_YYYY_HH:MM_slug`, and not a code fragment.
+fn is_brief_name(name: &str) -> bool {
+    brief_at(name.as_bytes(), 0) == Some(name.len())
+}
+
+/// Every brief named in `text`, once each, in the order they appear.
+///
+/// A message can spell the name bare, in brackets, or as a `.briefs/…md` path. All three name the
+/// same brief. A name that runs on into a longer word is not one: `x09_10_2026_…` names nothing.
+fn brief_names(text: &str) -> Vec<String> {
+    let b = text.as_bytes();
+    let mut out: Vec<String> = vec![];
+    let mut at = 0;
+    while at < b.len() {
+        let joins = at > 0 && (b[at - 1].is_ascii_alphanumeric() || b[at - 1] == b'_');
+        match brief_at(b, at) {
+            Some(n) if !joins && is_brief_name(&text[at..at + n]) => {
+                let name = &text[at..at + n];
+                if !out.iter().any(|s| s == name) {
+                    out.push(name.to_string());
+                }
+                at += n;
+            }
+            _ => at += 1,
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1055,6 +1393,156 @@ mod tests {
             at += 1 << l;
         }
         assert_eq!(at, total as u64);
+    }
+
+    #[test]
+    fn find_gives_the_coarsest_line_and_the_messages() {
+        let d = dir("find");
+        let mut m = Memory::open(&d, true).unwrap();
+        m.append("user", "alpha one").unwrap();
+        m.append("agent", "beta").unwrap();
+        m.append("user", "alpha two").unwrap();
+        m.append("agent", "gamma").unwrap();
+        m.build(&Cut).unwrap();
+        // All four messages are under (2,0); the two that hold "alpha" are 0 and 2.
+        let out = m.find("alpha", 10, false, true, true, false);
+        assert!(
+            out.contains("5 line(s) mention it, 2 message(s) mention it"),
+            "{out}"
+        );
+        assert!(out.contains("0+4"), "the coarsest line, as id+n: {out}");
+        assert!(
+            !out.contains("0+2") && !out.contains("2+2"),
+            "a line whose ancestor matched says nothing new: {out}"
+        );
+        assert!(
+            out.contains("alpha one") && out.contains("alpha two"),
+            "{out}"
+        );
+        // --exact keeps every line that matched.
+        let all = m.find("alpha", 10, true, true, false, false);
+        assert!(all.contains("0+2") && all.contains("2+2"), "{all}");
+        // A word the memory never held says so, rather than printing nothing.
+        let none = m.find("zebra", 10, false, true, true, false);
+        assert!(none.contains("nowhere in the memory"), "{none}");
+        // --log alone leaves the lines out.
+        let log = m.find("alpha", 10, false, false, true, false);
+        assert!(
+            log.contains("messages,") && !log.contains("opens one"),
+            "{log}"
+        );
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_quoted_phrase_is_one_word_and_a_bare_one_is_a_window() {
+        assert_eq!(pats("podium row"), vec!["podium", "row"]);
+        assert_eq!(pats("\"podium row\" tray"), vec!["podium row", "tray"]);
+        assert_eq!(pats("  spaced   out  "), vec!["spaced", "out"]);
+        assert!(pats("\"\"").is_empty());
+
+        let d = dir("find-phrase");
+        let mut m = Memory::open(&d, true).unwrap();
+        m.append("user", "the podium row needed a label").unwrap();
+        m.append("work", "row of podiums, something else").unwrap();
+        m.build(&Cut).unwrap();
+        let one = m.find("\"podium row\"", 10, false, false, true, false);
+        assert!(one.contains("1 message(s) mention it"), "{one}");
+        let both = m.find("podium row", 10, false, false, true, false);
+        assert!(both.contains("2 message(s) mention it"), "{both}");
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_thread_is_a_briefs_own_name_wherever_the_log_spells_it() {
+        // The shape, and the things that only look like it.
+        assert!(is_brief_name("09_10_2026_09:52_proceed-starts-round"));
+        assert!(
+            !is_brief_name("04_10_2026_20:53_cup-pin-server.md"),
+            "a file name is not a brief name"
+        );
+        assert!(!is_brief_name("09_10_2026_09:52_"), "a name needs a slug");
+        assert!(!is_brief_name("data-legacy"));
+        assert!(!is_brief_name("N-2"));
+        assert!(!is_brief_name("'O','O','O'"));
+        // A message can spell the name bare, in brackets, or as a path: all three are one brief.
+        let found = brief_names(
+            "the brief 09_10_2026_09:52_proceed-starts-round is done; \
+             [09_10_2026_09:52_proceed-starts-round] status: done; \
+             see .briefs/09_10_2026_09:52_proceed-starts-round.md",
+        );
+        assert_eq!(found, vec!["09_10_2026_09:52_proceed-starts-round"]);
+        // A code fragment in brackets is not a thread, and a name joined to a word is not one.
+        assert!(brief_names("[N-2] and [data-legacy] name no brief").is_empty());
+        assert!(brief_names("x09_10_2026_09:52_proceed-starts-round").is_empty());
+        // Two briefs in one message keep the order they are named in.
+        assert_eq!(
+            brief_names("09_10_2026_09:52_one then 10_10_2026_10:00_two"),
+            vec!["09_10_2026_09:52_one", "10_10_2026_10:00_two"]
+        );
+    }
+
+    #[test]
+    fn threads_gather_each_briefs_mentions_in_order() {
+        let d = dir("threads");
+        let mut m = Memory::open(&d, true).unwrap();
+        m.append("user", "start 09_10_2026_09:52_proceed-starts-round")
+            .unwrap();
+        m.append("agent", "[N-2] the tray is off by one").unwrap();
+        m.append(
+            "work",
+            "[09_10_2026_09:52_proceed-starts-round] status: working",
+        )
+        .unwrap();
+        // The same brief twice in one message is one mention of it.
+        m.append(
+            "note",
+            "09_10_2026_09:52_proceed-starts-round and 09_10_2026_09:52_proceed-starts-round",
+        )
+        .unwrap();
+        m.append("user", "and 10_10_2026_10:00_cup-pin-server.md in passing")
+            .unwrap();
+        let threads = m.threads();
+        assert_eq!(
+            threads.len(),
+            2,
+            "a code fragment is not a thread: {threads:?}"
+        );
+        assert_eq!(threads[0].name, "09_10_2026_09:52_proceed-starts-round");
+        assert_eq!(threads[0].mentions, vec![0, 2, 3]);
+        assert_eq!(threads[0].slug(), "proceed-starts-round");
+        assert_eq!(
+            threads[1].name, "10_10_2026_10:00_cup-pin-server",
+            "the .md is not part of the name"
+        );
+        assert_eq!(threads[1].mentions, vec![4]);
+        assert_eq!(m.messages(), 5);
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_snippet_lands_on_the_word_not_on_the_head() {
+        let text = format!(
+            "Repo: never read a path outside it. Scratch: go here. {} and the end.",
+            "filler ".repeat(40)
+        );
+        let out = snippet(&format!("{text} the needle"), &["needle".to_string()], 60);
+        assert!(out.contains("needle"), "{out}");
+        assert!(
+            out.starts_with('…') && !out.ends_with('…'),
+            "the needle is at the end: {out}"
+        );
+        let middle = snippet(
+            &format!("{text} the needle {}", "tail ".repeat(40)),
+            &["needle".to_string()],
+            60,
+        );
+        assert!(middle.starts_with('…') && middle.ends_with('…'), "{middle}");
+        // a short text is given whole, and a multibyte character is never split
+        assert_eq!(
+            snippet("borrowing é", &["borrowing".to_string()], 60),
+            "borrowing é"
+        );
     }
 
     #[test]

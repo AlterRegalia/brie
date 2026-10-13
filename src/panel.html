@@ -118,6 +118,7 @@
   const copyIcon = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg>';
   const folderIcon = '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
   const chev = '<svg class="chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>';
+  const termIcon = '<svg viewBox="0 0 24 24"><path d="M5 7l4 5-4 5"/><path d="M12 17h7"/></svg>';
   let data = { groups: [], total: 0, push: null, auto: false, pills: true, version: "" };
   const open = new Set();
 
@@ -143,6 +144,7 @@
         for (const b of briefs) {
           html += '<div class="brief" data-path="' + esc(b.path) + '"><span class="dot ' + b.status + '"></span>' +
             '<span class="name">' + esc(b.name) + '</span><span class="meta">' + esc(b.status) + '</span>' +
+            '<button class="btn" title="Open in Terminal" data-term="' + esc(b.path) + '">' + termIcon + '</button>' +
             '<button class="btn" title="Reveal in Finder" data-reveal="' + esc(b.path) + '">' + folderIcon + '</button>' +
             '<button class="btn" title="Copy path" data-copy="' + esc(b.path) + '">' + copyIcon + '</button></div>';
         }
@@ -155,10 +157,12 @@
   $("list").addEventListener("click", (e) => {
     const copy = e.target.closest("[data-copy]");
     if (copy) { post("copy\t" + copy.dataset.copy); return; }
+    const term = e.target.closest("[data-term]");
+    if (term) { post("open\t" + term.dataset.term); return; }
     const reveal = e.target.closest("[data-reveal]");
     if (reveal) { post("reveal\t" + reveal.dataset.reveal); return; }
     const brief = e.target.closest(".brief");
-    if (brief) { post("open\t" + brief.dataset.path); return; }
+    if (brief) { post("view\t" + brief.dataset.path); return; }
     const row = e.target.closest("[data-group]");
     if (row) {
       const name = row.dataset.group;
